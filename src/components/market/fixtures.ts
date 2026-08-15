@@ -1,0 +1,78 @@
+import type { MarketOverview } from "@/lib/data/market-overview.server";
+
+/** Test fixture shaped exactly like a real `MarketOverview` — used only by component tests, never by the app. */
+export function buildMarketOverviewFixture(overrides: Partial<MarketOverview> = {}): MarketOverview {
+  return {
+    market: "SP500",
+    timeframe: "15m",
+    price: 542.18,
+    lastUpdated: "2024-06-17T14:00:00.000Z",
+    provider: "alpaca",
+    marketStatus: {
+      market: "SP500",
+      asOf: "2024-06-17T14:00:00.000Z",
+      session: "REGULAR",
+      isOpen: true,
+      isDST: true,
+      tradingDay: "2024-06-17",
+      nextTransitionAt: "2024-06-17T20:00:00.000Z",
+    },
+    indicators: {
+      ema9: 541.2,
+      ema20: 539.8,
+      ema50: 535.4,
+      ema200: 520.1,
+      rsi14: 61.3,
+      atr14: 3.42,
+      vwap: { timestamp: "2024-06-17T14:00:00.000Z", value: 540.9, distancePct: 0.24 },
+      adx14: { timestamp: "2024-06-17T14:00:00.000Z", adx: 27.4, plusDI: 24.1, minusDI: 12.6 },
+      averageVolume: 1_500_000,
+      currentVolume: 1_720_000,
+    },
+    regime: {
+      market: "SP500",
+      timeframe: "15m",
+      timestamp: "2024-06-17T14:00:00.000Z",
+      regime: "UPTREND",
+      previousRegime: "RANGE",
+      confidenceScore: 72,
+      rulesEvaluated: [
+        { rule: "MODERATE_TREND_ADX", passed: true, value: 27.4, weight: 1 },
+        { rule: "TREND_DIRECTION_UP", passed: true, value: 45, weight: 1 },
+      ],
+      indicatorsSnapshot: {},
+      scores: {
+        trendScore: 45,
+        volatilityScore: 48,
+        breakoutScore: 0,
+        rangeScore: 20,
+        momentumScore: 22,
+      },
+    },
+    dataQuality: {
+      market: "SP500",
+      timeframe: "15m",
+      evaluatedAt: "2024-06-17T14:00:00.000Z",
+      candleCount: 120,
+      rangeFrom: "2024-06-12T13:30:00.000Z",
+      rangeTo: "2024-06-17T14:00:00.000Z",
+      status: "PASS",
+      rulesEvaluated: [],
+      gapsDetected: 0,
+      duplicatesDetected: 0,
+    },
+    persistedRegime: {
+      id: "test-id",
+      market: "SP500",
+      timeframe: "15m",
+      timestamp: "2024-06-17T13:00:00.000Z",
+      regime: "UPTREND",
+      previousRegime: "RANGE",
+      confidenceScore: 72,
+      rulesEvaluated: [],
+      indicatorsSnapshot: {},
+    },
+    regimeDurationMs: 60 * 60 * 1000,
+    ...overrides,
+  };
+}

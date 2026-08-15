@@ -40,6 +40,22 @@ export interface RegimeRuleEvaluation {
   weight: number;
 }
 
+/**
+ * Internal quantitative sub-scores computed per bar before
+ * classification. Each is a reproducible function of candles +
+ * indicators (see `RuleBasedRegimeDetector`) — none of these are
+ * probabilities and none should ever be presented to a user as one.
+ * `trendScore` and `momentumScore` are signed (-100..100, sign = direction);
+ * `volatilityScore`, `breakoutScore`, and `rangeScore` are unsigned (0..100).
+ */
+export interface RegimeScores {
+  trendScore: number;
+  volatilityScore: number;
+  breakoutScore: number;
+  rangeScore: number;
+  momentumScore: number;
+}
+
 export interface RegimeDetectionResult {
   market: Market;
   timeframe: Timeframe;
@@ -52,6 +68,8 @@ export interface RegimeDetectionResult {
   rulesEvaluated: RegimeRuleEvaluation[];
   /** Raw indicator readings used, persisted for auditability. */
   indicatorsSnapshot: IndicatorSnapshot;
+  /** Sub-scores that drove the classification, when available (absent for UNKNOWN with insufficient history). */
+  scores?: RegimeScores;
 }
 
 /**

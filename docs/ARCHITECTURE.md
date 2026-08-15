@@ -40,9 +40,11 @@ Consensus Engine or Risk Engine.
 | Module | Path | Status in this delivery |
 |---|---|---|
 | Shared types | `src/core/shared` | Implemented |
-| Market Data | `src/core/market-data` | Interface only — no live provider yet |
-| Indicators | `src/core/indicators` | Interface only — no concrete indicators yet |
-| Market Regime | `src/core/market-regime` | Interface + regime taxonomy — detector logic pending |
+| Market Hours | `src/core/market-hours` | **Implemented** — NYSE calendar (DST, RTH/pre/after, holidays) |
+| Market Data | `src/core/market-data` | **Implemented** — `MarketDataProvider` + Alpaca adapter (SPY) |
+| Indicators | `src/core/indicators` | **Implemented** — EMA, SMA, RSI, ATR, VWAP, MACD, ADX, Volume Average, Realized Volatility |
+| Data Quality | `src/core/data-quality` | **Implemented** — rule-based `DataQualityEngine` |
+| Market Regime | `src/core/market-regime` | **Implemented** — rule-based detector with confirmation-bar hysteresis |
 | Strategy Manager | `src/core/strategy-manager` | Interface + registration model — 5 strategies pending |
 | Consensus Engine | `src/core/consensus-engine` | Interface + scoring model |
 | Risk Engine | `src/core/risk-engine` | Interface + hard-coded default rules |
@@ -53,8 +55,8 @@ Consensus Engine or Risk Engine.
 | Notifications | `src/core/notifications` | Interface |
 | AI Layer | `src/core/ai-layer` | Interface with an explicit capability boundary |
 | Logging | `src/core/logging` | Interface + canonical event list |
-| Dashboard | `src/app/(dashboard)`, `src/components` | Implemented, mock data clearly marked |
-| Database | `supabase/migrations` | Implemented |
+| Dashboard | `src/app/(dashboard)`, `src/components` | Dashboard/Market/Market Regime run on real data; Strategies/Signals still mock (pending Strategy Manager) |
+| Database | `supabase/migrations` | Implemented (`0001` schema + `0002` provider identity) |
 
 ## 4. Why the Risk Engine sits where it does
 
@@ -77,9 +79,69 @@ row can only exist when that column is `true`.
 
 ## 6. Mock data policy
 
-Nothing in this delivery pretends to be live. Every mock dataset lives in
-`src/lib/mock/*.mock.ts`, exports `IS_MOCK_DATA = true as const`, and every
-component/page that renders it also renders `<MockDataBadge />`. Swapping to
-real data means changing the page that fetches it — `StrategyMatrix` and
-`ConsensusPanel` are presentational components that only know about their
-props, never about the mock module.
+Nothing in this delivery pretends to be live where a real implementation
+exists. Any mock dataset still in use lives in `src/lib/mock/*.mock.ts`,
+exports `IS_MOCK_DATA = true as const`, and every component/page that renders
+it also renders `<MockDataBadge />`. As of this delivery, `Dashboard`,
+`Market`, and `Market Regime` no longer use mock data at all — `Strategies`
+and `Signals` still do, pending the Strategy Manager / Consensus Engine
+implementation. `StrategyMatrix` and `ConsensusPanel` remain presentational
+components that only know about their props, never about the mock module, so
+swapping them to live data later is a page-level change only.
+
+## 7. Market data provider decision
+
+**Instrument**: the logical market `SP500` is backed by the **SPY ETF**, not
+the raw index (`^GSPC`, which has no real trading volume of its own) and not
+an ES future or a CFD. This mapping lives in code
+(`src/core/market-data/instruments.ts`), not in the `markets` table — see
+that file's comments for why. VWAP and volume-based indicators use SPY's
+real traded volume.
+
+**Provider comparison** (Alpha Vantage, Twelve Data, Polygon.io, Alpaca —
+evaluated on historical intraday depth, real-time availability, volume
+quality, API limits, reliability, cost, and integration effort):
+
+| Provider | Historical intraday | Real-time | Volume quality | Cost for this use case | Integration effort |
+|---|---|---|---|---|---|
+| Alpha Vantage | Available, shallower on the free tier | Delayed on free tier | Mixed for intraday | Free tier historically very rate-limited | Simple REST |
+| Twelve Data | Good documented depth | Paid-tier WebSocket | Generally solid | Usable free tier for light polling | Simple REST |
+| Polygon.io | Best-in-class, tick-level | Reliable | High fidelity | Real-time US equities require a paid plan | More setup |
+| **Alpaca Market Data API** (chosen) | Decent bars via the free IEX feed | Free IEX WebSocket feed | Good for SPY specifically | Free — account creation only, no funding/trading permissions needed | Easiest for this exact use case |
+
+**Chosen: Alpaca Market Data API**, `iex` feed. It's the best fit specifically
+*because* the instrument is SPY: no brokerage funding is required for market
+data access (this project never uses Alpaca's Trading API), and IEX-sourced
+bars are adequate for research-phase EMA/RSI/ATR/VWAP/ADX/MACD work. Known
+limitations: `iex` is not the full consolidated tape (a small fraction of US
+equity volume), so volume-based indicators reflect IEX volume, not total
+market volume — documented in `src/core/market-data/providers/alpaca.adapter.ts`.
+Free-tier rate limits and exact historical depth should be re-verified in
+Alpaca's docs at deploy time (they change independently of this codebase);
+the adapter retries with exponential backoff on `429`/5xx regardless of the
+exact limit.
+
+## 8. Fail-safe boundary
+
+`src/lib/data/market-overview.server.ts` (`getMarketOverview`) is the single
+function both the dashboard and the internal API routes call for a live
+snapshot. It returns a typed `Result` — `{ ok: false, error }` — and never
+throws, never returns partial data, and never falls back to mock data, on
+any of: an unconfigured provider, a fetch failure, or a Data Quality **FAIL**
+(`toMarketDataValidFlag`, `src/core/data-quality/types.ts`). Pages render
+`<DataUnavailableNotice reason={...} />` in that case. The same principle is
+what will drive `SignalQualityGate.marketDataValid` once `SignalEngine` is
+implemented: no market data confidence, no BUY/SELL — the pipeline is forced
+to WAIT.
+
+## 9. Market Regime Detector — hysteresis
+
+`RuleBasedRegimeDetector.detect()` must stay synchronous and stateless per
+its interface contract, so "minimum regime duration" hysteresis (which would
+need external state) isn't used. Instead it recomputes raw, per-bar
+classifications for a trailing window from `input.candles` itself and only
+"confirms" a regime change once the same classification has held for
+`CONFIRMATION_BARS` (3) consecutive bars — this needs no state outside a
+single call. See `src/core/market-regime/rule-based-regime-detector.ts` for
+the five sub-scores (`trendScore`, `volatilityScore`, `breakoutScore`,
+`rangeScore`, `momentumScore`) and the classification precedence.

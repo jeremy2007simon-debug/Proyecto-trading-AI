@@ -1,14 +1,26 @@
+import type { MarketStatus } from "@/core/market-hours/types";
 import type { ISOTimestamp, Market, Result, Timeframe } from "@/core/shared/types";
 
 /**
  * A single OHLCV candle. This is the atomic unit every downstream module
  * (indicators, regime detector, strategies) consumes — nothing downstream
  * is allowed to reach past this shape back to a raw provider payload.
+ *
+ * `symbol` and `provider` make every candle self-describing: `symbol` is
+ * the exact ticker fetched (e.g. "SPY" for the logical market "SP500" —
+ * see `instruments.ts` for why these differ), and `provider` is the id
+ * of the `MarketDataProvider` that produced the row. Both are persisted
+ * and are part of `market_candles`'s uniqueness constraint (see
+ * `supabase/migrations/0002_market_candles_provider_identity.sql`), so
+ * two providers reporting the same market/timeframe/timestamp never
+ * silently collide.
  */
 export interface Candle {
   market: Market;
   timeframe: Timeframe;
   timestamp: ISOTimestamp;
+  symbol: string;
+  provider: string;
   open: number;
   high: number;
   low: number;
@@ -46,9 +58,22 @@ export interface MarketDataProvider {
   readonly id: string;
   readonly supportedMarkets: readonly Market[];
 
-  getCandles(
+  getHistoricalCandles(
     request: MarketDataRequest,
   ): Promise<Result<Candle[], MarketDataError>>;
 
-  getLatestPrice(market: Market): Promise<Result<number, MarketDataError>>;
+  getLatestCandle(
+    market: Market,
+    timeframe: Timeframe,
+  ): Promise<Result<Candle, MarketDataError>>;
+
+  getCurrentPrice(market: Market): Promise<Result<number, MarketDataError>>;
+
+  /**
+   * Most adapters should implement this by delegating to a pure
+   * `MarketHoursCalendar.getStatus()` (calendar math, no network call
+   * needed) rather than an API call — override only if the provider
+   * exposes real exchange status (e.g. trading halts).
+   */
+  getMarketStatus(market: Market): Promise<Result<MarketStatus, MarketDataError>>;
 }

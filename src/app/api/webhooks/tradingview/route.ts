@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { createSlidingWindowRateLimiter } from "@/lib/security/rate-limiter";
+import { timingSafeEqual } from "@/lib/security/timing-safe-equal";
 
 /**
  * Inbound TradingView alert webhook — SKELETON ONLY.
@@ -32,28 +34,7 @@ const tradingViewAlertSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_REQUESTS = 30;
-const requestLog = new Map<string, number[]>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const timestamps = (requestLog.get(ip) ?? []).filter(
-    (t) => now - t < RATE_LIMIT_WINDOW_MS,
-  );
-  timestamps.push(now);
-  requestLog.set(ip, timestamps);
-  return timestamps.length > RATE_LIMIT_MAX_REQUESTS;
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i++) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return mismatch === 0;
-}
+const rateLimiter = createSlidingWindowRateLimiter(60_000, 30);
 
 export async function POST(request: NextRequest) {
   const secret = process.env.TRADINGVIEW_WEBHOOK_SECRET;
@@ -65,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (isRateLimited(ip)) {
+  if (rateLimiter.isRateLimited(ip)) {
     return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
   }
 

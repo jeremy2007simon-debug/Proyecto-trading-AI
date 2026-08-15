@@ -46,6 +46,29 @@ export interface AdxValue {
   minusDI: number;
 }
 
+export interface SmaValue {
+  timestamp: string;
+  value: number;
+}
+
+export interface MacdValue {
+  timestamp: string;
+  macd: number;
+  signal: number;
+  histogram: number;
+}
+
+export interface VolumeAverageValue {
+  timestamp: string;
+  value: number;
+}
+
+export interface RealizedVolatilityValue {
+  timestamp: string;
+  /** Standard deviation of log returns over the window, expressed as a percentage. */
+  value: number;
+}
+
 /**
  * Snapshot of the indicator values a caller (regime detector, strategy)
  * cares about for the most recent candle. Concrete strategies/regime
@@ -54,12 +77,15 @@ export interface AdxValue {
  * duplicated computation across strategies.
  */
 export interface IndicatorSnapshot {
+  ema9?: number;
   ema20?: number;
   ema50?: number;
   ema200?: number;
+  sma20?: number;
   atr14?: number;
   rsi14?: number;
   vwap?: VwapValue;
+  macd?: MacdValue;
   adx14?: AdxValue;
   realizedVolatility?: number;
   averageVolume?: number;
