@@ -1,7 +1,31 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { SignalBadge } from "@/components/ui/SignalBadge";
-import type { StrategyMatrixRow } from "@/lib/mock/strategy-matrix.mock";
+import type { MarketRegime } from "@/core/market-regime/types";
+import type { Market, SignalDirection, Timeframe } from "@/core/shared/types";
+
+/**
+ * `StrategyMatrix`'s own prop shape — it owns this type, not the other
+ * way around. `src/lib/mock/strategy-matrix.mock.ts` imports it from
+ * here so the mock and any real data source (`getStrategySignals`) are
+ * both just producers of the same shape this component already expects.
+ */
+export interface StrategyMatrixRow {
+  strategyId: string;
+  strategyName: string;
+  market: Market;
+  timeframe: Timeframe;
+  signal: SignalDirection;
+  weight: number;
+  rawScore: number;
+  currentRegime: MarketRegime;
+  compatibleWithCurrentRegime: boolean;
+  enabled: boolean;
+  winRate?: number;
+  profitFactor?: number;
+  sampleSize?: number;
+}
 
 interface StrategyMatrixProps {
   rows: StrategyMatrixRow[];
@@ -44,9 +68,12 @@ export function StrategyMatrix({ rows, headerAction }: StrategyMatrixProps) {
                 className="border-b border-border-subtle last:border-0"
               >
                 <td className="px-5 py-3">
-                  <p className="font-medium text-foreground">
+                  <Link
+                    href={`/strategies/${row.strategyId}`}
+                    className="font-medium text-foreground hover:underline"
+                  >
                     {row.strategyName}
-                  </p>
+                  </Link>
                   <p className="text-xs text-muted">
                     {row.market} · {row.timeframe}
                   </p>

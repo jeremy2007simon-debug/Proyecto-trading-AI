@@ -16,6 +16,7 @@ export * from "@/core/indicators/atr";
 export * from "@/core/indicators/ema";
 export * from "@/core/indicators/macd";
 export * from "@/core/indicators/realized-volatility";
+export * from "@/core/indicators/rolling-percentile";
 export * from "@/core/indicators/rsi";
 export * from "@/core/indicators/sma";
 export * from "@/core/indicators/volume-average";

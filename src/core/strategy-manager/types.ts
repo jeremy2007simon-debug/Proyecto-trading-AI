@@ -39,6 +39,8 @@ export interface StrategyEvaluationInput {
 export interface StrategySignal {
   strategyId: string;
   strategyName: string;
+  /** The `Strategy.version` that produced this signal — pins the signal to the exact rule set that generated it, so later parameter/rule changes never retroactively reinterpret historical signals. */
+  strategyVersion: string;
   signal: SignalDirection;
   timestamp: ISOTimestamp;
   market: Market;
@@ -60,6 +62,12 @@ export interface StrategySignal {
   metadata: Record<string, unknown>;
 }
 
+/** A `StrategySignal` as persisted (append-only) to `strategy_signals`. */
+export interface StrategySignalRecord extends StrategySignal {
+  id: string;
+  createdAt: ISOTimestamp;
+}
+
 /**
  * Common interface every strategy implements. Adding a new strategy means
  * writing a new class/module that satisfies this interface and registering
@@ -70,8 +78,22 @@ export interface Strategy {
   readonly id: string;
   readonly name: string;
   readonly description: string;
-  readonly market: Market;
-  readonly timeframe: Timeframe;
+  /**
+   * Semver-ish version of this strategy's rule set. Bump it whenever the
+   * BUY/SELL/WAIT logic (not just a default parameter value) changes, so
+   * `StrategySignal.strategyVersion` always identifies exactly which
+   * rules produced a given historical signal.
+   */
+  readonly version: string;
+  /**
+   * Factory-level default: whether this strategy should be registered
+   * enabled. `StrategyRegistration.enabled` is the live, manager-owned
+   * override (see `StrategyManager.setEnabled`) — this field only seeds
+   * that initial value at `register()` time.
+   */
+  readonly enabled: boolean;
+  readonly supportedMarkets: readonly Market[];
+  readonly supportedTimeframes: readonly Timeframe[];
   /** Regimes under which this strategy is considered appropriate to run. */
   readonly compatibleRegimes: readonly MarketRegime[];
   readonly defaultParameters: StrategyParameters;

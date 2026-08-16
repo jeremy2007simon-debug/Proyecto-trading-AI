@@ -6,6 +6,7 @@ import { toMarketDataValidFlag } from "@/core/data-quality/types";
 import { computeIndicatorSnapshot } from "@/core/indicators";
 import type { IndicatorSnapshot } from "@/core/indicators/types";
 import { createMarketDataProvider } from "@/core/market-data/provider-factory";
+import type { Candle } from "@/core/market-data/types";
 import { createNyseCalendar } from "@/core/market-hours/nyse-calendar";
 import type { MarketStatus } from "@/core/market-hours/types";
 import { createRuleBasedRegimeDetector } from "@/core/market-regime/rule-based-regime-detector";
@@ -21,6 +22,8 @@ export interface MarketOverview {
   lastUpdated: string;
   marketStatus: MarketStatus;
   provider: string;
+  /** Raw candles behind this snapshot — strategies need these directly (rolling highs/lows, opening range, VWAP/EMA crosses), not just the latest indicator values. */
+  candles: Candle[];
   indicators: IndicatorSnapshot;
   regime: RegimeDetectionResult;
   dataQuality: DataQualityReport;
@@ -47,7 +50,13 @@ export interface MarketUnavailable {
   dataQuality?: DataQualityReport;
 }
 
-const LOOKBACK_MS = 5 * 24 * 60 * 60 * 1000; // 5 days — enough candles to satisfy every indicator's warmup on intraday timeframes
+// 10 days — the regime detector's rolling ATR/volatility percentile baseline
+// (60-bar default window) raises minHistory to 82 bars; 10 days of intraday
+// candles keeps a safety margin above that on 15m/5m timeframes. Known
+// limitation (unchanged from block 2): on 1h candles (~6.5 RTH bars/day)
+// this still falls short of 82 bars — out of scope here since the 5
+// strategies in this block only use 15m/5m, not 1h.
+const LOOKBACK_MS = 10 * 24 * 60 * 60 * 1000;
 
 /**
  * The single function both dashboard pages (Server Components) and API
@@ -134,6 +143,7 @@ export async function getMarketOverview(
       lastUpdated: lastCandle.timestamp,
       marketStatus,
       provider: provider.id,
+      candles,
       indicators,
       regime,
       dataQuality,

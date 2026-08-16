@@ -1,31 +1,13 @@
 import type { MarketRegime } from "@/core/market-regime/types";
-import type { Market, SignalDirection, Timeframe } from "@/core/shared/types";
+import type { StrategyMatrixRow } from "@/components/strategy/StrategyMatrix";
 
 /**
  * MOCK DATA — clearly flagged so it can never be mistaken for a live
- * reading. No Market Data Engine or live strategy evaluation is wired
- * up yet; this shape matches `StrategySignal` +
- * `StrategyRegistration`/`StrategyPerformanceSummary` exactly so the
- * `StrategyMatrix` component can be swapped to real data later without
- * changing its props.
+ * reading. `StrategyMatrix` owns `StrategyMatrixRow` (see that file);
+ * this mock is just one producer of that same shape, same as
+ * `getStrategySignals` is for real data.
  */
 export const IS_MOCK_DATA = true as const;
-
-export interface StrategyMatrixRow {
-  strategyId: string;
-  strategyName: string;
-  market: Market;
-  timeframe: Timeframe;
-  signal: SignalDirection;
-  weight: number;
-  rawScore: number;
-  currentRegime: MarketRegime;
-  compatibleWithCurrentRegime: boolean;
-  enabled: boolean;
-  winRate?: number;
-  profitFactor?: number;
-  sampleSize?: number;
-}
 
 export const mockCurrentRegime: MarketRegime = "UPTREND";
 

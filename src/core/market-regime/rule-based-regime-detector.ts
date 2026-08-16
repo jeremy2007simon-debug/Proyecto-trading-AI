@@ -3,6 +3,7 @@ import { ATR_14 } from "@/core/indicators/atr";
 import { EMA_20, EMA_9 } from "@/core/indicators/ema";
 import { MACD_12_26_9 } from "@/core/indicators/macd";
 import { REALIZED_VOLATILITY_20 } from "@/core/indicators/realized-volatility";
+import { createRollingPercentile } from "@/core/indicators/rolling-percentile";
 import { RSI_14 } from "@/core/indicators/rsi";
 import { VOLUME_AVERAGE_20 } from "@/core/indicators/volume-average";
 import type {
@@ -27,6 +28,15 @@ const CONFIRMATION_BARS = 3;
 /** Lookback window (bars) used to detect a breakout of prior structure. */
 const BREAKOUT_LOOKBACK = 20;
 
+/**
+ * Trailing window (bars) used to rank the current ATR / realized
+ * volatility against their own recent history (see
+ * `createRollingPercentile`). Configurable via `createRuleBasedRegimeDetector`'s
+ * `baselineWindow` option; not claimed to be optimal — a reasonable
+ * research-phase default, to be revisited once backtesting exists.
+ */
+const DEFAULT_BASELINE_WINDOW = 60;
+
 const STRONG_ADX_THRESHOLD = 35;
 const TREND_ADX_THRESHOLD = 20;
 const HIGH_VOL_THRESHOLD = 80;
@@ -36,13 +46,6 @@ const BREAKOUT_SCORE_THRESHOLD = 60;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 function toTimestampMap<T extends { timestamp: string }>(values: T[]): Map<string, T> {
@@ -59,7 +62,10 @@ interface BarInputs {
   minusDI: number;
   rsi: number;
   macdHistogram: number;
-  realizedVolatility: number;
+  /** 0-100 rank of this bar's realized volatility within the trailing `baselineWindow`. */
+  volatilityPercentile: number;
+  /** 0-100 rank of this bar's ATR within the trailing `baselineWindow`. */
+  atrPercentile: number;
   averageVolume: number;
   currentVolume: number;
   priorHigh: number;
@@ -74,27 +80,28 @@ interface RawClassification {
 
 /**
  * Computes the 5 sub-scores and classifies a single bar. Pure function
- * of its inputs — `medianRVol`/`medianAtr` are the self-relative
- * volatility baselines for the whole window being analyzed (see the
- * caller for why this doesn't introduce look-ahead bias: every value
- * here comes from `input.candles`, which the caller guarantees never
- * extends past "now").
+ * of its inputs — `volatilityPercentile`/`atrPercentile` are each bar's
+ * own rolling-window percentile (see `createRollingPercentile`), so
+ * unlike a whole-series baseline they never shift depending on how much
+ * extra history the caller requested beyond what the window needs.
  */
-function classifyBar(bar: BarInputs, medianRVol: number, medianAtr: number): RawClassification {
+function classifyBar(bar: BarInputs): RawClassification {
   const emaAlignment = bar.ema9 > bar.ema20 ? 1 : -1;
   const diSign = bar.plusDI === bar.minusDI ? 0 : bar.plusDI > bar.minusDI ? 1 : -1;
   const trendScore = clamp(emaAlignment * 30 + diSign * bar.adx * 0.7, -100, 100);
 
-  const volRatio = medianRVol > 0 ? bar.realizedVolatility / medianRVol : 1;
-  const volatilityScore = clamp(volRatio * 50, 0, 100);
+  const volatilityScore = clamp(bar.volatilityPercentile, 0, 100);
 
   const brokeOutUp = bar.close > bar.priorHigh;
   const brokeOutDown = bar.close < bar.priorLow;
   const volumeRatio = bar.averageVolume > 0 ? bar.currentVolume / bar.averageVolume : 1;
-  const atrRatio = medianAtr > 0 ? bar.atr / medianAtr : 1;
+  // ATR expansion bonus/penalty around the 50th percentile (its own
+  // recent median), mirroring the old ratio-around-1.0 shape but
+  // derived from a proper rolling baseline instead of a whole-series one.
+  const atrExpansionTerm = (bar.atrPercentile - 50) * 0.5;
   const breakoutScore =
     brokeOutUp || brokeOutDown
-      ? clamp(50 + (volumeRatio - 1) * 25 + (atrRatio - 1) * 25, 0, 100)
+      ? clamp(50 + (volumeRatio - 1) * 25 + atrExpansionTerm, 0, 100)
       : 0;
 
   const bandWidthPct = bar.close !== 0 ? ((bar.priorHigh - bar.priorLow) / bar.close) * 100 : 0;
@@ -174,12 +181,33 @@ function insufficientHistoryResult(input: RegimeDetectionInput, minHistory: numb
   };
 }
 
+export interface RuleBasedRegimeDetectorConfig {
+  /**
+   * Trailing window (bars) for the ATR / realized-volatility rolling
+   * percentile baselines. See `createRollingPercentile` and the
+   * `DEFAULT_BASELINE_WINDOW` doc comment. Configurable per the
+   * requirement that this baseline never be a fixed, unconfigurable
+   * value — not claimed optimal.
+   */
+  baselineWindow?: number;
+}
+
 /**
  * Rule-based, deterministic Market Regime Detector. No generative model
  * is involved anywhere in this file — every classification traces back
  * to candles and the indicator series computed from them.
  */
-export function createRuleBasedRegimeDetector(): MarketRegimeDetector {
+export function createRuleBasedRegimeDetector(
+  config: RuleBasedRegimeDetectorConfig = {},
+): MarketRegimeDetector {
+  const baselineWindow = config.baselineWindow ?? DEFAULT_BASELINE_WINDOW;
+  const volatilityPercentileIndicator = createRollingPercentile(
+    REALIZED_VOLATILITY_20,
+    (v) => v.value,
+    baselineWindow,
+  );
+  const atrPercentileIndicator = createRollingPercentile(ATR_14, (v) => v.value, baselineWindow);
+
   return {
     id: "rule-based",
 
@@ -195,6 +223,8 @@ export function createRuleBasedRegimeDetector(): MarketRegimeDetector {
         MACD_12_26_9.warmupPeriod,
         VOLUME_AVERAGE_20.warmupPeriod,
         REALIZED_VOLATILITY_20.warmupPeriod,
+        volatilityPercentileIndicator.warmupPeriod,
+        atrPercentileIndicator.warmupPeriod,
         BREAKOUT_LOOKBACK + 1,
       );
       const minHistory = maxWarmup + CONFIRMATION_BARS - 1;
@@ -205,17 +235,14 @@ export function createRuleBasedRegimeDetector(): MarketRegimeDetector {
 
       const ema9Map = toTimestampMap(EMA_9.compute(candles));
       const ema20Map = toTimestampMap(EMA_20.compute(candles));
-      const atrSeries = ATR_14.compute(candles);
-      const atrMap = toTimestampMap(atrSeries);
+      const atrMap = toTimestampMap(ATR_14.compute(candles));
       const adxMap = toTimestampMap(ADX_14.compute(candles));
       const rsiMap = toTimestampMap(RSI_14.compute(candles));
       const macdMap = toTimestampMap(MACD_12_26_9.compute(candles));
       const volAvgMap = toTimestampMap(VOLUME_AVERAGE_20.compute(candles));
-      const rvolSeries = REALIZED_VOLATILITY_20.compute(candles);
-      const rvolMap = toTimestampMap(rvolSeries);
-
-      const medianRVol = median(rvolSeries.map((v) => v.value));
-      const medianAtr = median(atrSeries.map((v) => v.value));
+      const rvolMap = toTimestampMap(REALIZED_VOLATILITY_20.compute(candles));
+      const volatilityPercentileMap = toTimestampMap(volatilityPercentileIndicator.compute(candles));
+      const atrPercentileMap = toTimestampMap(atrPercentileIndicator.compute(candles));
 
       const rawSeries: RawClassification[] = [];
 
@@ -229,7 +256,14 @@ export function createRuleBasedRegimeDetector(): MarketRegimeDetector {
         const macd = macdMap.get(c.timestamp);
         const volAvg = volAvgMap.get(c.timestamp);
         const rvol = rvolMap.get(c.timestamp);
-        if (!ema9 || !ema20 || !atr || !adx || !rsi || !macd || !volAvg || !rvol) continue;
+        const volatilityPercentile = volatilityPercentileMap.get(c.timestamp);
+        const atrPercentile = atrPercentileMap.get(c.timestamp);
+        if (
+          !ema9 || !ema20 || !atr || !adx || !rsi || !macd || !volAvg || !rvol ||
+          !volatilityPercentile || !atrPercentile
+        ) {
+          continue;
+        }
 
         const windowStart = Math.max(0, i - BREAKOUT_LOOKBACK);
         const priorCandles = candles.slice(windowStart, i);
@@ -248,14 +282,15 @@ export function createRuleBasedRegimeDetector(): MarketRegimeDetector {
           minusDI: adx.minusDI,
           rsi: rsi.value,
           macdHistogram: macd.histogram,
-          realizedVolatility: rvol.value,
+          volatilityPercentile: volatilityPercentile.percentile,
+          atrPercentile: atrPercentile.percentile,
           averageVolume: volAvg.value,
           currentVolume: c.volume,
           priorHigh,
           priorLow,
         };
 
-        rawSeries.push(classifyBar(bar, medianRVol, medianAtr));
+        rawSeries.push(classifyBar(bar));
       }
 
       if (rawSeries.length === 0) {

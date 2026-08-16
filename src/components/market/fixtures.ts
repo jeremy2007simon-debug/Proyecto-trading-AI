@@ -8,6 +8,20 @@ export function buildMarketOverviewFixture(overrides: Partial<MarketOverview> = 
     price: 542.18,
     lastUpdated: "2024-06-17T14:00:00.000Z",
     provider: "alpaca",
+    candles: [
+      {
+        market: "SP500",
+        timeframe: "15m",
+        timestamp: "2024-06-17T14:00:00.000Z",
+        symbol: "SPY",
+        provider: "alpaca",
+        open: 541.5,
+        high: 542.6,
+        low: 541.1,
+        close: 542.18,
+        volume: 120_000,
+      },
+    ],
     marketStatus: {
       market: "SP500",
       asOf: "2024-06-17T14:00:00.000Z",
