@@ -192,7 +192,8 @@ describe("vwapStrategy", () => {
     expect(fromPrefixOfLonger).toEqual(fromShort);
   });
 
-  it("was not touched by Block 4.5's timeframe generalization (still 15m-only)", () => {
+  it("was not touched by Block 4.5's timeframe/market generalization (still 15m-only, SP500-only)", () => {
     expect(vwapStrategy.supportedTimeframes).toEqual(["15m"]);
+    expect(vwapStrategy.supportedMarkets).toEqual(["SP500"]);
   });
 });

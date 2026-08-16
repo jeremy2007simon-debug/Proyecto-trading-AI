@@ -42,6 +42,10 @@ yarn-error.log*
 # the final report built from it is what gets committed, not this raw JSON.
 /.backtest-results/
 
+# Block 4.5 strategy research raw output (scripts/run-strategy-research.ts,
+# audit-cost-model.ts, run-block45-deep-validation.ts) — same rationale.
+/.block4-5-results/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

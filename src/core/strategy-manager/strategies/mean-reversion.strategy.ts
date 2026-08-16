@@ -150,7 +150,11 @@ export const meanReversionStrategy: Strategy = {
     "Trades a bounce back toward EMA20 when RSI14 is at an extreme, price is meaningfully extended (in ATR terms) from EMA20, and VWAP distance confirms the same side. Take-profit targets EMA20 itself rather than an arbitrary R-multiple. Quantitative hypothesis pending backtesting validation.",
   version: "1.0.0",
   enabled: true,
-  supportedMarkets: ["SP500"],
+  // Widened in Block 4.5 (Phase 7) to test cross-asset robustness — same
+  // capability-declaration-only rationale as `supportedTimeframes`
+  // below. None of the three added markets are in `ACTIVE_MARKETS`, so
+  // the live dashboard (which only ever requests SP500) is unaffected.
+  supportedMarkets: ["SP500", "NASDAQ100", "RUSSELL2000", "DOWJONES"],
   // Widened in Block 4.5 (Phase 5) to test timeframe robustness — the
   // rule set itself is fully timeframe-agnostic (EMA20/ATR14/RSI14/VWAP
   // all recompute generically from whatever candles they're given), so

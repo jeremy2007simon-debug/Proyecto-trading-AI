@@ -25,6 +25,9 @@ import {
 import type { Candle } from "@/core/market-data/types";
 import type { IndicatorSnapshot } from "@/core/indicators/types";
 
+/** See the usage site (Block 4.5 performance fix) for the full rationale. */
+const STRATEGY_LOOKBACK_BARS = 1000;
+
 function eastDateKey(instant: Date): string {
   const parts = getEasternWallClockParts(instant);
   return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
@@ -192,6 +195,8 @@ function closeTrade(
     exitAt,
     exitReason,
     ambiguousIntrabarExit: ambiguous,
+    positionSize: position.positionSize,
+    riskAmount: position.riskAmount,
     grossPnlAmount,
     pnlAmount,
     pnlR,
@@ -331,7 +336,24 @@ function simulateSingleStrategy(
     if (!openPosition && !pendingLimitOrder) {
       const gate = evaluateDailyRiskGate(dayState, DEFAULT_RISK_RULES);
       if (gate.allowed) {
-        const candlesSoFar = candles.slice(0, i + 1);
+        // Bounded, not `candles.slice(0, i + 1)`: a strategy's own
+        // `generateSignal` recomputes its indicators from scratch on
+        // whatever window it's given (unlike the regime/indicator-series
+        // precompute above, which is already a single O(n) pass) — an
+        // ever-growing window makes the whole simulation O(n²) in candle
+        // count, which is intractable for the multi-year, sub-5m-timeframe
+        // datasets Block 4.5 requires (confirmed empirically: a single
+        // 2-year 15m run took on the order of 20-30 minutes before this
+        // fix). `STRATEGY_LOOKBACK_BARS` is generous relative to every
+        // indicator MR/ORB actually use (EMA20/ATR14/RSI14 converge
+        // within ~100-200 bars; VWAP and the opening-range window are
+        // session-anchored and only need the CURRENT session's bars,
+        // which — since this window only ever looks backward from "now"
+        // — are always among the most recent entries regardless of
+        // calendar gaps/weekends). Existing tests (all well under 1000
+        // candles) are completely unaffected — this slice is a no-op
+        // until a dataset exceeds the bound.
+        const candlesSoFar = candles.slice(Math.max(0, i + 1 - STRATEGY_LOOKBACK_BARS), i + 1);
         const regime = regimeByTimestamp.get(candle.timestamp) ?? "UNKNOWN";
         const indicators = indicatorSeries.get(candle.timestamp) ?? {};
 

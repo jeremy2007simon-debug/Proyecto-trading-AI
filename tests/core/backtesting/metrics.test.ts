@@ -20,6 +20,8 @@ function trade(overrides: Partial<BacktestTrade>): BacktestTrade {
     entrySpreadAmount: 0,
     exitSlippageAmount: 0,
     exitSpreadAmount: 0,
+    positionSize: 1,
+    riskAmount: 50,
     rulesTriggered: [],
     ...overrides,
   };

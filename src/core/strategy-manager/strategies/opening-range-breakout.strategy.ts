@@ -204,7 +204,11 @@ export const openingRangeBreakoutStrategy: Strategy = {
     "Trades the first decisive break of the session's opening range (default 15 minutes, configurable in multiples of the strategy's timeframe), requiring volume confirmation and firing only on the first bar that clears the level. Never signals before the opening range closes. Quantitative hypothesis pending backtesting validation.",
   version: "1.0.0",
   enabled: true,
-  supportedMarkets: ["SP500"],
+  // Widened in Block 4.5 (Phase 7) to test cross-asset robustness — same
+  // capability-declaration-only rationale as `supportedTimeframes`
+  // below. None of the three added markets are in `ACTIVE_MARKETS`, so
+  // the live dashboard (which only ever requests SP500) is unaffected.
+  supportedMarkets: ["SP500", "NASDAQ100", "RUSSELL2000", "DOWJONES"],
   // Widened in Block 4.5 (Phase 5) to test timeframe robustness — the
   // rule set itself is timeframe-agnostic (it already validates
   // `openingRangeMinutes % timeframeMinutes === 0` generically). This is

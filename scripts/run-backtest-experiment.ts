@@ -41,11 +41,11 @@
  * unmodified. Nothing here tunes parameters, retries with different
  * settings, or omits an unfavorable result.
  */
-import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { promisify } from "node:util";
+
+import { setupSandboxIO } from "./lib/sandbox-io";
+setupSandboxIO();
 
 import { createRuleBasedDataQualityEngine } from "@/core/data-quality/rule-based-data-quality-engine";
 import type { DataQualityReport } from "@/core/data-quality/types";
@@ -70,62 +70,6 @@ import { buildWalkForwardWindows, runWalkForwardWindows } from "@/core/backtesti
 import { DEFAULT_RISK_RULES } from "@/core/risk-engine/types";
 import { getDefaultStrategyManager } from "@/core/strategy-manager/registry";
 import { TIMEFRAME_MINUTES } from "@/core/shared/timeframe";
-
-// --- .env.local loader (this script runs outside Next.js, which is the
-// only thing that normally loads it) — no new dependency, just a
-// minimal KEY=VALUE parser that never overrides an already-set var. ---
-function loadDotEnvLocal(): void {
-  const path = join(process.cwd(), ".env.local");
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if (process.env[key] === undefined) process.env[key] = value;
-  }
-}
-loadDotEnvLocal();
-
-// --- curl-based fetch shim for this sandbox only ---
-//
-// This development sandbox routes outbound HTTPS through a local
-// forward proxy ($HTTPS_PROXY); `curl` honors that env var natively,
-// but Node's built-in `fetch` (undici) does not, and neither
-// `undici.setGlobalDispatcher` nor an explicit `dispatcher: new
-// ProxyAgent(...)` reached the built-in fetch in this Node build during
-// testing. Rather than change `alpaca.adapter.ts`'s plain `fetch()`
-// calls (production Next.js deployments do not sit behind this proxy
-// and need no such shim), this script replaces `globalThis.fetch` with
-// a `curl`-backed implementation for the lifetime of this one-off
-// process only. `alpaca.adapter.ts` only ever reads `response.status`
-// and calls `response.json()` — never headers — so a status+body-only
-// `Response` is a complete, honest substitute here.
-const execFileAsync = promisify(execFile);
-
-async function curlFetch(input: string | URL, init?: RequestInit): Promise<Response> {
-  const url = String(input);
-  const headers = (init?.headers ?? {}) as Record<string, string>;
-  const headerArgs = Object.entries(headers).flatMap(([key, value]) => ["-H", `${key}: ${value}`]);
-
-  const dir = mkdtempSync(join(tmpdir(), "curl-fetch-"));
-  const bodyFile = join(dir, "body");
-  try {
-    const { stdout } = await execFileAsync(
-      "curl",
-      ["-sS", "-o", bodyFile, "-w", "%{http_code}", url, ...headerArgs],
-      { maxBuffer: 64 * 1024 * 1024 },
-    );
-    const status = Number(stdout.trim());
-    const body = readFileSync(bodyFile, "utf8");
-    return new Response(body, { status: Number.isFinite(status) && status > 0 ? status : 599 });
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-globalThis.fetch = curlFetch as typeof fetch;
 
 const OUTPUT_DIR = join(process.cwd(), ".backtest-results");
 const EXPERIMENT_YEARS = Number(process.env.EXPERIMENT_YEARS ?? "2");
@@ -154,7 +98,6 @@ interface StrategyExperimentSummary {
 }
 
 function log(...args: unknown[]): void {
-  // eslint-disable-next-line no-console
   console.log(...args);
 }
 
@@ -433,7 +376,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  // eslint-disable-next-line no-console
   console.error("[experiment] Unhandled error:", error);
   process.exitCode = 1;
 });

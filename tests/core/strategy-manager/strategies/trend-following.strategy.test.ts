@@ -132,7 +132,8 @@ describe("trendFollowingStrategy", () => {
     expect(fromPrefixOfLonger).toEqual(fromFullHistory);
   });
 
-  it("was not touched by Block 4.5's timeframe generalization (still 15m-only)", () => {
+  it("was not touched by Block 4.5's timeframe/market generalization (still 15m-only, SP500-only)", () => {
     expect(trendFollowingStrategy.supportedTimeframes).toEqual(["15m"]);
+    expect(trendFollowingStrategy.supportedMarkets).toEqual(["SP500"]);
   });
 });

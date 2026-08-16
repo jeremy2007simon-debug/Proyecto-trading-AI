@@ -136,6 +136,10 @@ describe("meanReversionStrategy", () => {
       expect(meanReversionStrategy.supportedTimeframes).toEqual(["15m", "5m", "30m", "1h"]);
     });
 
+    it("declares support for NASDAQ100/RUSSELL2000/DOWJONES too, for cross-asset validation (Phase 7)", () => {
+      expect(meanReversionStrategy.supportedMarkets).toEqual(["SP500", "NASDAQ100", "RUSSELL2000", "DOWJONES"]);
+    });
+
     it("produces the same coherent BUY signal when the same fixture is labeled as a different timeframe", () => {
       // The rule set never reads `candle.timeframe`/`input.timeframe` in
       // its math (only EMA20/ATR14/RSI14/VWAP over OHLC) — this proves

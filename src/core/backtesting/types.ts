@@ -190,6 +190,10 @@ export interface BacktestTrade {
   exitReason?: ExitReason;
   /** True when this trade's exit bar touched both stopLoss and takeProfit — see `SameCandlePolicy`. */
   ambiguousIntrabarExit: boolean;
+  /** Quantity (shares/units) — always > 0, regardless of direction. */
+  positionSize: number;
+  /** $ risked on this trade at entry (`accountEquity * riskPerTradePct / 100` at the time), the denominator of `pnlR`. */
+  riskAmount: number;
   /** P&L using raw (unadjusted) entry/exit prices — as if commission, slippage, and spread were all zero. Never negative-costs-adjusted; see `pnlAmount` for the net figure actually realized. */
   grossPnlAmount?: number;
   pnlAmount?: number;

@@ -641,6 +641,54 @@ describe("createEventDrivenBacktestEngine", () => {
     });
   });
 
+  describe("strategy lookback window (Block 4.5 performance fix)", () => {
+    it("never gives the strategy more than STRATEGY_LOOKBACK_BARS (1000) candles, even on a much larger dataset", () => {
+      const observedLengths: number[] = [];
+      const spyStrategy: Strategy = {
+        id: "spy-strategy",
+        name: "spy-strategy",
+        description: "test double",
+        version: "1.0.0",
+        enabled: true,
+        supportedMarkets: ["SP500"],
+        supportedTimeframes: ["15m"],
+        compatibleRegimes: ALL_REGIMES,
+        defaultParameters: {},
+        generateSignal(input: StrategyEvaluationInput): StrategySignal {
+          observedLengths.push(input.candles.length);
+          return waitSignal("spy-strategy", input, "never trades");
+        },
+      };
+      const manager = buildManagerWithStrategy(spyStrategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(1500);
+      engine.run(buildConfig({ strategyIds: ["spy-strategy"] }), candles);
+
+      expect(observedLengths.length).toBeGreaterThan(0);
+      expect(Math.max(...observedLengths)).toBe(1000);
+      // Never look-ahead-truncated on the way UP either — the strategy is
+      // never called with fewer candles than the true prefix length until
+      // the bound actually kicks in.
+      expect(observedLengths[0]).toBe(1);
+      expect(observedLengths[999]).toBe(1000);
+    });
+
+    it("does not change results for a dataset at/under the bound (existing behavior is a strict subset — no-op for every pre-existing test)", () => {
+      const strategy = createTriggerStrategy({ triggerAtLength: 20, entry: 100, stopLoss: 98, takeProfit: 104 });
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(20);
+      candles.push(bar(20, { low: 97, high: 100.5, close: 98 }));
+
+      const run = engine.run(buildConfig(), candles);
+
+      expect(run.trades).toHaveLength(1);
+      expect(run.trades[0].pnlR).toBeCloseTo(-1, 10);
+    });
+  });
+
   describe("failure conditions", () => {
     const strategy = createTriggerStrategy({ triggerAtLength: 5, entry: 100, stopLoss: 98 });
     const manager = buildManagerWithStrategy(strategy);

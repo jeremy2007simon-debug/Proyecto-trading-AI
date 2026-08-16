@@ -23,6 +23,8 @@ function tradeWithR(pnlR: number): BacktestTrade {
     entrySpreadAmount: 0,
     exitSlippageAmount: 0,
     exitSpreadAmount: 0,
+    positionSize: 25,
+    riskAmount: 50,
     rulesTriggered: [],
   };
 }

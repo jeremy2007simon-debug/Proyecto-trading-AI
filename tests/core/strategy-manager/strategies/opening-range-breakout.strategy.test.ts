@@ -211,6 +211,10 @@ describe("openingRangeBreakoutStrategy", () => {
       expect(openingRangeBreakoutStrategy.supportedTimeframes).toEqual(["5m", "1m", "15m", "30m"]);
     });
 
+    it("declares support for NASDAQ100/RUSSELL2000/DOWJONES too, for cross-asset validation (Phase 7)", () => {
+      expect(openingRangeBreakoutStrategy.supportedMarkets).toEqual(["SP500", "NASDAQ100", "RUSSELL2000", "DOWJONES"]);
+    });
+
     it("produces a coherent BUY signal on 15m too, where the default 15-minute opening range is exactly one bar", () => {
       const FIFTEEN_MIN_MS = 900_000;
       const bar15 = (timestampMs: number, overrides: Partial<Candle>): Candle => ({

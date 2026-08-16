@@ -146,6 +146,11 @@ function rowToTrade(row: BacktestTradeRow): BacktestTrade {
     entrySpreadAmount: 0,
     exitSlippageAmount: 0,
     exitSpreadAmount: 0,
+    // Same rationale as the cost breakdown above — `backtest_trades` has
+    // no `position_size`/`risk_amount` columns yet, and nothing reads
+    // these from a DB-sourced trade in this block.
+    positionSize: 0,
+    riskAmount: 0,
     marketRegimeAtEntry: row.market_regime_at_entry ?? undefined,
     indicatorsAtEntry: row.indicators_at_entry ?? undefined,
     rulesTriggered: row.rules_triggered ?? [],
