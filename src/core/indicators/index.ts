@@ -79,3 +79,68 @@ export function computeIndicatorSnapshot(
 
   return snapshot;
 }
+
+function toTimestampMap<T extends { timestamp: string }>(values: T[]): Map<string, T> {
+  return new Map(values.map((v) => [v.timestamp, v]));
+}
+
+/**
+ * Same fields as `computeIndicatorSnapshot`, but for EVERY bar in one
+ * linear pass instead of only the latest — each indicator's `.compute()`
+ * already returns its full causal series in O(n), so this is just
+ * assembling per-timestamp snapshots from those series rather than
+ * discarding all but the last value. Exists purely as a performance
+ * escape hatch for callers (the backtesting engine) that would otherwise
+ * call `computeIndicatorSnapshot` once per bar on a growing prefix — an
+ * O(n^2) pattern for something this function computes in O(n).
+ */
+export function computeIndicatorSnapshotSeries(
+  candles: readonly Candle[],
+  calendar: MarketHoursCalendar,
+): Map<string, IndicatorSnapshot> {
+  const ema9Map = toTimestampMap(EMA_9.compute(candles));
+  const ema20Map = toTimestampMap(EMA_20.compute(candles));
+  const ema50Map = toTimestampMap(EMA_50.compute(candles));
+  const ema200Map = toTimestampMap(EMA_200.compute(candles));
+  const sma20Map = toTimestampMap(SMA_20.compute(candles));
+  const atr14Map = toTimestampMap(ATR_14.compute(candles));
+  const rsi14Map = toTimestampMap(RSI_14.compute(candles));
+  const vwapMap = toTimestampMap(createVwap(calendar).compute(candles));
+  const macdMap = toTimestampMap(MACD_12_26_9.compute(candles));
+  const adx14Map = toTimestampMap(ADX_14.compute(candles));
+  const volAvgMap = toTimestampMap(VOLUME_AVERAGE_20.compute(candles));
+  const rvolMap = toTimestampMap(REALIZED_VOLATILITY_20.compute(candles));
+
+  const series = new Map<string, IndicatorSnapshot>();
+  for (const candle of candles) {
+    const snapshot: IndicatorSnapshot = {};
+    const ema9 = ema9Map.get(candle.timestamp);
+    if (ema9) snapshot.ema9 = ema9.value;
+    const ema20 = ema20Map.get(candle.timestamp);
+    if (ema20) snapshot.ema20 = ema20.value;
+    const ema50 = ema50Map.get(candle.timestamp);
+    if (ema50) snapshot.ema50 = ema50.value;
+    const ema200 = ema200Map.get(candle.timestamp);
+    if (ema200) snapshot.ema200 = ema200.value;
+    const sma20 = sma20Map.get(candle.timestamp);
+    if (sma20) snapshot.sma20 = sma20.value;
+    const atr14 = atr14Map.get(candle.timestamp);
+    if (atr14) snapshot.atr14 = atr14.value;
+    const rsi14 = rsi14Map.get(candle.timestamp);
+    if (rsi14) snapshot.rsi14 = rsi14.value;
+    const vwap = vwapMap.get(candle.timestamp);
+    if (vwap) snapshot.vwap = vwap;
+    const macd = macdMap.get(candle.timestamp);
+    if (macd) snapshot.macd = macd;
+    const adx14 = adx14Map.get(candle.timestamp);
+    if (adx14) snapshot.adx14 = adx14;
+    const averageVolume = volAvgMap.get(candle.timestamp);
+    if (averageVolume) snapshot.averageVolume = averageVolume.value;
+    snapshot.currentVolume = candle.volume;
+    const realizedVolatility = rvolMap.get(candle.timestamp);
+    if (realizedVolatility) snapshot.realizedVolatility = realizedVolatility.value;
+
+    series.set(candle.timestamp, snapshot);
+  }
+  return series;
+}

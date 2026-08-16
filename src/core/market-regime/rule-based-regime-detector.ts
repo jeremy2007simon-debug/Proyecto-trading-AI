@@ -160,25 +160,34 @@ function regimeConfidence(regime: MarketRegime, scores: RegimeScores, adx: numbe
   }
 }
 
-function insufficientHistoryResult(input: RegimeDetectionInput, minHistory: number): RegimeDetectionResult {
-  const { candles } = input;
+function insufficientHistoryResultAt(
+  input: RegimeDetectionInput,
+  timestamp: string,
+  candleCount: number,
+  minHistory: number,
+): RegimeDetectionResult {
   return {
     market: input.market,
     timeframe: input.timeframe,
-    timestamp:
-      candles.length > 0 ? candles[candles.length - 1].timestamp : new Date().toISOString(),
+    timestamp,
     regime: "UNKNOWN",
     confidenceScore: 0,
     rulesEvaluated: [
       {
         rule: "SUFFICIENT_HISTORY",
         passed: false,
-        value: `${candles.length}/${minHistory} required candles`,
+        value: `${candleCount}/${minHistory} required candles`,
         weight: 1,
       },
     ],
     indicatorsSnapshot: input.indicators,
   };
+}
+
+function insufficientHistoryResult(input: RegimeDetectionInput, minHistory: number): RegimeDetectionResult {
+  const { candles } = input;
+  const timestamp = candles.length > 0 ? candles[candles.length - 1].timestamp : new Date().toISOString();
+  return insufficientHistoryResultAt(input, timestamp, candles.length, minHistory);
 }
 
 export interface RuleBasedRegimeDetectorConfig {
@@ -208,13 +217,9 @@ export function createRuleBasedRegimeDetector(
   );
   const atrPercentileIndicator = createRollingPercentile(ATR_14, (v) => v.value, baselineWindow);
 
-  return {
-    id: "rule-based",
-
-    detect(input: RegimeDetectionInput): RegimeDetectionResult {
-      const { candles } = input;
-
-      const maxWarmup = Math.max(
+  function computeMinHistory(): number {
+    return (
+      Math.max(
         EMA_9.warmupPeriod,
         EMA_20.warmupPeriod,
         ATR_14.warmupPeriod,
@@ -226,111 +231,155 @@ export function createRuleBasedRegimeDetector(
         volatilityPercentileIndicator.warmupPeriod,
         atrPercentileIndicator.warmupPeriod,
         BREAKOUT_LOOKBACK + 1,
-      );
-      const minHistory = maxWarmup + CONFIRMATION_BARS - 1;
+      ) +
+      CONFIRMATION_BARS -
+      1
+    );
+  }
 
-      if (candles.length < minHistory) {
-        return insufficientHistoryResult(input, minHistory);
+  /**
+   * Computes the confirmed regime AT EVERY BAR in ONE linear pass over
+   * `candles`, instead of the O(n) work `detect()` does being repeated
+   * O(n) times (once per bar) by a naive caller — which would make
+   * anything that needs a per-bar regime series (the backtesting engine)
+   * effectively O(n^2). Every indicator series and the confirmation-bar
+   * hysteresis walk below are computed exactly ONCE here; `detect()` is
+   * simply this function's last element, so its public behavior is
+   * unchanged bit-for-bit — this is a pure internal factoring, not a
+   * behavior change.
+   */
+  function detectSeries(input: RegimeDetectionInput): RegimeDetectionResult[] {
+    const { candles } = input;
+    const maxWarmup =
+      computeMinHistory() - CONFIRMATION_BARS + 1;
+    const minHistory = computeMinHistory();
+
+    if (candles.length < minHistory) {
+      return [insufficientHistoryResult(input, minHistory)];
+    }
+
+    const ema9Map = toTimestampMap(EMA_9.compute(candles));
+    const ema20Map = toTimestampMap(EMA_20.compute(candles));
+    const atrMap = toTimestampMap(ATR_14.compute(candles));
+    const adxMap = toTimestampMap(ADX_14.compute(candles));
+    const rsiMap = toTimestampMap(RSI_14.compute(candles));
+    const macdMap = toTimestampMap(MACD_12_26_9.compute(candles));
+    const volAvgMap = toTimestampMap(VOLUME_AVERAGE_20.compute(candles));
+    const rvolMap = toTimestampMap(REALIZED_VOLATILITY_20.compute(candles));
+    const volatilityPercentileMap = toTimestampMap(volatilityPercentileIndicator.compute(candles));
+    const atrPercentileMap = toTimestampMap(atrPercentileIndicator.compute(candles));
+
+    const rawSeries: (RawClassification & { timestamp: string; adx: number })[] = [];
+
+    for (let i = maxWarmup - 1; i < candles.length; i++) {
+      const c = candles[i];
+      const ema9 = ema9Map.get(c.timestamp);
+      const ema20 = ema20Map.get(c.timestamp);
+      const atr = atrMap.get(c.timestamp);
+      const adx = adxMap.get(c.timestamp);
+      const rsi = rsiMap.get(c.timestamp);
+      const macd = macdMap.get(c.timestamp);
+      const volAvg = volAvgMap.get(c.timestamp);
+      const rvol = rvolMap.get(c.timestamp);
+      const volatilityPercentile = volatilityPercentileMap.get(c.timestamp);
+      const atrPercentile = atrPercentileMap.get(c.timestamp);
+      if (
+        !ema9 || !ema20 || !atr || !adx || !rsi || !macd || !volAvg || !rvol ||
+        !volatilityPercentile || !atrPercentile
+      ) {
+        continue;
       }
 
-      const ema9Map = toTimestampMap(EMA_9.compute(candles));
-      const ema20Map = toTimestampMap(EMA_20.compute(candles));
-      const atrMap = toTimestampMap(ATR_14.compute(candles));
-      const adxMap = toTimestampMap(ADX_14.compute(candles));
-      const rsiMap = toTimestampMap(RSI_14.compute(candles));
-      const macdMap = toTimestampMap(MACD_12_26_9.compute(candles));
-      const volAvgMap = toTimestampMap(VOLUME_AVERAGE_20.compute(candles));
-      const rvolMap = toTimestampMap(REALIZED_VOLATILITY_20.compute(candles));
-      const volatilityPercentileMap = toTimestampMap(volatilityPercentileIndicator.compute(candles));
-      const atrPercentileMap = toTimestampMap(atrPercentileIndicator.compute(candles));
+      const windowStart = Math.max(0, i - BREAKOUT_LOOKBACK);
+      const priorCandles = candles.slice(windowStart, i);
+      const priorHigh =
+        priorCandles.length > 0 ? Math.max(...priorCandles.map((p) => p.high)) : c.high;
+      const priorLow =
+        priorCandles.length > 0 ? Math.min(...priorCandles.map((p) => p.low)) : c.low;
 
-      const rawSeries: RawClassification[] = [];
+      const bar: BarInputs = {
+        close: c.close,
+        ema9: ema9.value,
+        ema20: ema20.value,
+        atr: atr.value,
+        adx: adx.adx,
+        plusDI: adx.plusDI,
+        minusDI: adx.minusDI,
+        rsi: rsi.value,
+        macdHistogram: macd.histogram,
+        volatilityPercentile: volatilityPercentile.percentile,
+        atrPercentile: atrPercentile.percentile,
+        averageVolume: volAvg.value,
+        currentVolume: c.volume,
+        priorHigh,
+        priorLow,
+      };
 
-      for (let i = maxWarmup - 1; i < candles.length; i++) {
-        const c = candles[i];
-        const ema9 = ema9Map.get(c.timestamp);
-        const ema20 = ema20Map.get(c.timestamp);
-        const atr = atrMap.get(c.timestamp);
-        const adx = adxMap.get(c.timestamp);
-        const rsi = rsiMap.get(c.timestamp);
-        const macd = macdMap.get(c.timestamp);
-        const volAvg = volAvgMap.get(c.timestamp);
-        const rvol = rvolMap.get(c.timestamp);
-        const volatilityPercentile = volatilityPercentileMap.get(c.timestamp);
-        const atrPercentile = atrPercentileMap.get(c.timestamp);
-        if (
-          !ema9 || !ema20 || !atr || !adx || !rsi || !macd || !volAvg || !rvol ||
-          !volatilityPercentile || !atrPercentile
-        ) {
-          continue;
-        }
+      rawSeries.push({ ...classifyBar(bar), timestamp: c.timestamp, adx: adx.adx });
+    }
 
-        const windowStart = Math.max(0, i - BREAKOUT_LOOKBACK);
-        const priorCandles = candles.slice(windowStart, i);
-        const priorHigh =
-          priorCandles.length > 0 ? Math.max(...priorCandles.map((p) => p.high)) : c.high;
-        const priorLow =
-          priorCandles.length > 0 ? Math.min(...priorCandles.map((p) => p.low)) : c.low;
+    if (rawSeries.length === 0) {
+      return [insufficientHistoryResult(input, minHistory)];
+    }
 
-        const bar: BarInputs = {
-          close: c.close,
-          ema9: ema9.value,
-          ema20: ema20.value,
-          atr: atr.value,
-          adx: adx.adx,
-          plusDI: adx.plusDI,
-          minusDI: adx.minusDI,
-          rsi: rsi.value,
-          macdHistogram: macd.histogram,
-          volatilityPercentile: volatilityPercentile.percentile,
-          atrPercentile: atrPercentile.percentile,
-          averageVolume: volAvg.value,
-          currentVolume: c.volume,
-          priorHigh,
-          priorLow,
-        };
+    // Confirmation-bar hysteresis (see CONFIRMATION_BARS doc comment
+    // above): walk the raw classification series forward and only
+    // "confirm" a regime once it has held for CONFIRMATION_BARS
+    // consecutive bars, damping single-bar noise without any state
+    // external to this call. State only ever flows forward (never looks
+    // ahead), so the confirmed regime at position k depends solely on
+    // rawSeries[0..k] — this is what makes per-bar results below valid
+    // regardless of how much MORE data follows in `candles`.
+    let confirmedRegime: MarketRegime = "UNKNOWN";
+    let previousConfirmedRegime: MarketRegime | undefined;
+    let streakValue: MarketRegime | null = null;
+    let streakCount = 0;
+    const results: RegimeDetectionResult[] = [];
 
-        rawSeries.push(classifyBar(bar));
+    rawSeries.forEach((entry, rawIndex) => {
+      streakCount = entry.regime === streakValue ? streakCount + 1 : 1;
+      streakValue = entry.regime;
+      if (streakCount >= CONFIRMATION_BARS && entry.regime !== confirmedRegime) {
+        previousConfirmedRegime = confirmedRegime;
+        confirmedRegime = entry.regime;
       }
 
-      if (rawSeries.length === 0) {
-        return insufficientHistoryResult(input, minHistory);
+      // Matches detect()'s upfront `candles.length < minHistory` gate,
+      // applied per-position: fewer than CONFIRMATION_BARS raw
+      // classifications means an equivalent-length standalone `detect()`
+      // call on this exact prefix would refuse to classify at all
+      // (insufficient history), not merely report an unconfirmed
+      // regime via hysteresis. Keeping this in lockstep with `detect()`
+      // is what makes `detectSeries` genuinely prefix-stable per bar.
+      if (rawIndex < CONFIRMATION_BARS - 1) {
+        results.push(insufficientHistoryResultAt(input, entry.timestamp, maxWarmup + rawIndex, minHistory));
+        return;
       }
 
-      // Confirmation-bar hysteresis (see CONFIRMATION_BARS doc comment
-      // above): walk the raw classification series forward and only
-      // "confirm" a regime once it has held for CONFIRMATION_BARS
-      // consecutive bars, damping single-bar noise without any state
-      // external to this call.
-      let confirmedRegime: MarketRegime = "UNKNOWN";
-      let previousConfirmedRegime: MarketRegime | undefined;
-      let streakValue: MarketRegime | null = null;
-      let streakCount = 0;
-
-      for (const entry of rawSeries) {
-        streakCount = entry.regime === streakValue ? streakCount + 1 : 1;
-        streakValue = entry.regime;
-        if (streakCount >= CONFIRMATION_BARS && entry.regime !== confirmedRegime) {
-          previousConfirmedRegime = confirmedRegime;
-          confirmedRegime = entry.regime;
-        }
-      }
-
-      const last = rawSeries[rawSeries.length - 1];
-      const lastCandle = candles[candles.length - 1];
-      const lastAdx = adxMap.get(lastCandle.timestamp)?.adx ?? 0;
-
-      return {
+      results.push({
         market: input.market,
         timeframe: input.timeframe,
-        timestamp: lastCandle.timestamp,
+        timestamp: entry.timestamp,
         regime: confirmedRegime,
         previousRegime: previousConfirmedRegime,
-        confidenceScore: regimeConfidence(confirmedRegime, last.scores, lastAdx),
-        rulesEvaluated: last.rules,
+        confidenceScore: regimeConfidence(confirmedRegime, entry.scores, entry.adx),
+        rulesEvaluated: entry.rules,
         indicatorsSnapshot: input.indicators,
-        scores: last.scores,
-      };
+        scores: entry.scores,
+      });
+    });
+
+    return results;
+  }
+
+  return {
+    id: "rule-based",
+
+    detect(input: RegimeDetectionInput): RegimeDetectionResult {
+      const series = detectSeries(input);
+      return series[series.length - 1];
     },
+
+    detectSeries,
   };
 }

@@ -29,5 +29,7 @@ export function createMarketDataProvider(): Result<MarketDataProvider, MarketDat
     };
   }
 
-  return { ok: true, value: createAlpacaMarketDataProvider({ keyId, secretKey }) };
+  const feed = process.env.ALPACA_FEED === "iex" ? "iex" : process.env.ALPACA_FEED === "sip" ? "sip" : undefined;
+
+  return { ok: true, value: createAlpacaMarketDataProvider({ keyId, secretKey, feed }) };
 }

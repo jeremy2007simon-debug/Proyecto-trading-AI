@@ -83,6 +83,17 @@ export interface MarketRegimeDetector {
   readonly id: string;
 
   detect(input: RegimeDetectionInput): RegimeDetectionResult;
+
+  /**
+   * Same computation as `detect`, but returns the confirmed regime AT
+   * EVERY bar (from warmup onward) in a single linear pass, instead of
+   * only the last one. `detect(input).regime` always equals
+   * `detectSeries(input).at(-1)!.regime` — this is purely a performance
+   * escape hatch for callers (the backtesting engine) that need a
+   * per-bar regime series and would otherwise have to call `detect` once
+   * per bar on a growing prefix, which is O(n^2).
+   */
+  detectSeries(input: RegimeDetectionInput): RegimeDetectionResult[];
 }
 
 /**

@@ -193,4 +193,63 @@ describe("createRuleBasedRegimeDetector", () => {
       expect(result.previousRegime).not.toBe("STRONG_DOWNTREND");
     });
   });
+
+  describe("detectSeries", () => {
+    // `indicatorsSnapshot` is a caller-supplied pass-through (echoed
+    // verbatim from `input.indicators`), never computed per-bar by the
+    // detector itself — true both before and after this method existed.
+    // Passing the SAME snapshot to every comparison call below isolates
+    // the tests to what `detectSeries` actually computes (regime,
+    // previousRegime, confidenceScore, rulesEvaluated, scores).
+    const sharedIndicators = {};
+
+    function detectAt(candles: Candle[]) {
+      return detector.detect({ market: "SP500", timeframe: "1h", candles, indicators: sharedIndicators });
+    }
+
+    it("its last element exactly matches detect() called on the same candles", () => {
+      const candles = buildTrendCandles(220, 1);
+      const series = detector.detectSeries({
+        market: "SP500",
+        timeframe: "1h",
+        candles,
+        indicators: sharedIndicators,
+      });
+
+      expect(series[series.length - 1]).toEqual(detectAt(candles));
+    });
+
+    it("is prefix-stable per bar: each entry equals what detect() returns for candles truncated up to that same bar", () => {
+      const candles = buildTrendCandles(220, 1);
+      const series = detector.detectSeries({
+        market: "SP500",
+        timeframe: "1h",
+        candles,
+        indicators: sharedIndicators,
+      });
+
+      // Spot-check across the series rather than every position — each
+      // check is itself an O(n) detect() call, so checking all of them
+      // would defeat the point of this being a fast test.
+      const sampleIndices = [0, Math.floor(series.length / 4), Math.floor(series.length / 2), series.length - 1];
+      for (const idx of sampleIndices) {
+        const candleIndex = candles.findIndex((c) => c.timestamp === series[idx].timestamp);
+        expect(candleIndex).toBeGreaterThanOrEqual(0);
+        const prefix = candles.slice(0, candleIndex + 1);
+        expect(series[idx]).toEqual(detectAt(prefix));
+      }
+    });
+
+    it("returns a single insufficient-history result, matching detect(), when there isn't enough history", () => {
+      const candles = buildRangeCandles(10);
+      const series = detector.detectSeries({
+        market: "SP500",
+        timeframe: "1h",
+        candles,
+        indicators: sharedIndicators,
+      });
+
+      expect(series).toEqual([detectAt(candles)]);
+    });
+  });
 });

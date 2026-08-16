@@ -18,7 +18,7 @@ interface CalendarDate {
   day: number;
 }
 
-interface EasternParts extends CalendarDate {
+export interface EasternParts extends CalendarDate {
   hour: number;
   minute: number;
   weekday: number; // 0=Sun..6=Sat
@@ -240,6 +240,18 @@ function computeNextTransitionUTC(today: CalendarDate, minuteOfDay: number, isTr
   }
   const next = nextTradingDayFrom(today);
   return easternWallTimeToUtc(next.year, next.month, next.day, 4, 0);
+}
+
+/**
+ * Public wrapper over the module's internal Eastern wall-clock
+ * conversion — exposes `{year, month, day, hour, minute, weekday}` for
+ * callers that need Eastern-local time bucketing (e.g. backtesting's
+ * performance-by-hour/weekday/month/session breakdowns) without
+ * reimplementing the DST-correct `Intl.DateTimeFormat` conversion this
+ * module already has.
+ */
+export function getEasternWallClockParts(instant: Date): EasternParts {
+  return getEasternParts(instant);
 }
 
 /** Concrete NYSE-hours calendar, used for SPY (the SP500 instrument proxy — see market-data/instruments.ts). */

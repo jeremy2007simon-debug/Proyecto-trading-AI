@@ -11,14 +11,21 @@ import type { Market, Result, Timeframe } from "@/core/shared/types";
 
 /**
  * Alpaca Market Data API v2 adapter — https://docs.alpaca.markets/reference/stockbars
- * Uses the free `iex` feed (real-time IEX-only tape, not full SIP
- * consolidated volume). Credentials are passed in by the caller
+ * Feed defaults to `sip` (full consolidated tape) but is configurable —
+ * see `AlpacaCredentials.feed`. `iex` (the free real-time-only feed) was
+ * this adapter's original hardcoded default; empirical testing during
+ * the backtesting block found `iex` 5-minute bars for SPY inconsistent
+ * before ~2020 (entire weeks missing), while `sip` reliably returns data
+ * back to ~2016 on this account — `sip` is the better default for
+ * historical research even though it may require a paid plan on other
+ * accounts, which is exactly why it stays configurable, not hardcoded
+ * either way. Credentials are passed in by the caller
  * (`provider-factory.ts`, server-only) — this file never reads
  * `process.env` itself, which keeps it directly unit-testable.
  */
 
 const ALPACA_DATA_BASE_URL = "https://data.alpaca.markets/v2";
-const FEED = "iex";
+const DEFAULT_FEED = "sip";
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 500;
 
@@ -35,6 +42,8 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
 export interface AlpacaCredentials {
   keyId: string;
   secretKey: string;
+  /** "sip" (full consolidated tape, default) or "iex" (free real-time-only feed). See the module doc comment above for why `sip` is the default. */
+  feed?: "sip" | "iex";
 }
 
 interface AlpacaBar {
@@ -163,6 +172,8 @@ function mapAlpacaBar(
 export function createAlpacaMarketDataProvider(
   credentials: AlpacaCredentials,
 ): MarketDataProvider {
+  const feed = credentials.feed ?? DEFAULT_FEED;
+
   return {
     id: "alpaca",
     supportedMarkets: ["SP500"],
@@ -186,7 +197,7 @@ export function createAlpacaMarketDataProvider(
             start: request.from,
             end: request.to,
             limit: request.limit ? String(request.limit) : "10000",
-            feed: FEED,
+            feed,
             page_token: pageToken,
           },
           credentials,
@@ -216,7 +227,7 @@ export function createAlpacaMarketDataProvider(
 
       const result = await alpacaRequest<AlpacaLatestBarResponse>(
         `/stocks/${instrument.value.ticker}/bars/latest`,
-        { feed: FEED },
+        { feed },
         credentials,
       );
       if (!result.ok) return result;
@@ -237,7 +248,7 @@ export function createAlpacaMarketDataProvider(
 
       const result = await alpacaRequest<AlpacaLatestTradeResponse>(
         `/stocks/${instrument.value.ticker}/trades/latest`,
-        { feed: FEED },
+        { feed },
         credentials,
       );
       if (!result.ok) return result;
