@@ -19,6 +19,10 @@ function tradeWithR(pnlR: number): BacktestTrade {
     pnlR,
     commissionPaid: 0,
     slippagePaid: 0,
+    entrySlippageAmount: 0,
+    entrySpreadAmount: 0,
+    exitSlippageAmount: 0,
+    exitSpreadAmount: 0,
     rulesTriggered: [],
   };
 }

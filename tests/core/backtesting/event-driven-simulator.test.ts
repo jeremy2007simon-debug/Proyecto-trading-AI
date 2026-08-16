@@ -202,6 +202,43 @@ function buildManagerWithStrategy(strategy: Strategy) {
   return manager;
 }
 
+/** Always fires BUY the moment it's flat, and counts how many times it was actually invoked — used to prove a pending LIMIT order blocks re-evaluation instead of silently being replaced every bar. */
+function createCountingAlwaysBuyStrategy(counter: { calls: number }): Strategy {
+  return {
+    id: "counting-always-buy",
+    name: "counting-always-buy",
+    description: "test double",
+    version: "1.0.0",
+    enabled: true,
+    supportedMarkets: ["SP500"],
+    supportedTimeframes: ["15m"],
+    compatibleRegimes: ALL_REGIMES,
+    defaultParameters: {},
+    generateSignal(input: StrategyEvaluationInput): StrategySignal {
+      counter.calls += 1;
+      const lastCandle = input.candles[input.candles.length - 1];
+      return {
+        strategyId: "counting-always-buy",
+        strategyName: "counting-always-buy",
+        strategyVersion: "1.0.0",
+        signal: "BUY",
+        timestamp: lastCandle.timestamp,
+        market: input.market,
+        timeframe: input.timeframe,
+        marketRegime: input.marketRegime,
+        price: lastCandle.close,
+        entry: lastCandle.close,
+        stopLoss: lastCandle.close - 1,
+        rawScore: 80,
+        rulesTriggered: ["ALWAYS"],
+        rulesFailed: [],
+        explanation: "always buy",
+        metadata: {},
+      };
+    },
+  };
+}
+
 describe("createEventDrivenBacktestEngine", () => {
   describe("R-multiple calculation", () => {
     it("resolves a full stop-loss hit to exactly -1R (zero costs)", () => {
@@ -421,6 +458,186 @@ describe("createEventDrivenBacktestEngine", () => {
         expect(count).toBeLessThanOrEqual(DEFAULT_RISK_RULES.maxTradesPerDay);
       }
       expect(run.trades.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("cost breakdown (spread vs slippage, gross vs net) — Block 4.5", () => {
+    it("separates entry/exit slippage from entry/exit spread, and their sum equals the legacy combined field", () => {
+      const strategy = createTriggerStrategy({ triggerAtLength: 20, entry: 100, stopLoss: 98, takeProfit: 104 });
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(20);
+      candles.push(bar(20, { low: 97, high: 100.5, close: 98 })); // touches stop only
+
+      const run = engine.run(
+        buildConfig({ costs: { commissionPerFill: 1, slippagePct: 0.001, halfSpread: 0.01 } }),
+        candles,
+      );
+      const trade = run.trades[0];
+
+      // riskAmount=50 (0.5% of 10,000), stopDistance=2 -> positionSize=25.
+      // Entry per-unit: slippage=100*0.001=0.1, spread=0.01 -> *25 = 2.5 / 0.25.
+      // Exit (STOP_LOSS, market-style) per-unit at raw 98: slippage=0.098, spread=0.01 -> *25 = 2.45 / 0.25.
+      expect(trade.entrySlippageAmount).toBeCloseTo(2.5, 10);
+      expect(trade.entrySpreadAmount).toBeCloseTo(0.25, 10);
+      expect(trade.exitSlippageAmount).toBeCloseTo(2.45, 10);
+      expect(trade.exitSpreadAmount).toBeCloseTo(0.25, 10);
+      expect(trade.slippagePaid).toBeCloseTo(
+        trade.entrySlippageAmount + trade.entrySpreadAmount + trade.exitSlippageAmount + trade.exitSpreadAmount,
+        10,
+      );
+    });
+
+    it("gross P&L minus every cost component equals net P&L exactly, for a losing BUY trade", () => {
+      const strategy = createTriggerStrategy({ triggerAtLength: 20, entry: 100, stopLoss: 98, takeProfit: 104 });
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(20);
+      candles.push(bar(20, { low: 97, high: 100.5, close: 98 }));
+
+      const run = engine.run(
+        buildConfig({ costs: { commissionPerFill: 1, slippagePct: 0.001, halfSpread: 0.01 } }),
+        candles,
+      );
+      const trade = run.trades[0];
+
+      expect(trade.grossPnlAmount).toBeCloseTo(-50, 10); // (98-100)*25
+      const totalCosts =
+        trade.commissionPaid + trade.entrySlippageAmount + trade.entrySpreadAmount + trade.exitSlippageAmount + trade.exitSpreadAmount;
+      expect(trade.grossPnlAmount! - totalCosts).toBeCloseTo(trade.pnlAmount!, 10);
+    });
+
+    it("gross P&L minus every cost component equals net P&L exactly, for a SELL (short) trade", () => {
+      const strategy = createTriggerStrategy({
+        triggerAtLength: 20,
+        direction: "SELL",
+        entry: 100,
+        stopLoss: 102,
+        takeProfit: 96,
+      });
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(20);
+      candles.push(bar(20, { low: 99.8, high: 102.5, close: 102 })); // touches stop only
+
+      const run = engine.run(
+        buildConfig({ costs: { commissionPerFill: 1, slippagePct: 0.001, halfSpread: 0.01 } }),
+        candles,
+      );
+      const trade = run.trades[0];
+
+      const totalCosts =
+        trade.commissionPaid + trade.entrySlippageAmount + trade.entrySpreadAmount + trade.exitSlippageAmount + trade.exitSpreadAmount;
+      expect(trade.grossPnlAmount! - totalCosts).toBeCloseTo(trade.pnlAmount!, 10);
+    });
+
+    it("a take-profit exit has zero exit slippage/spread cost, even though entry still paid its own", () => {
+      const strategy = createTriggerStrategy({ triggerAtLength: 20, entry: 100, stopLoss: 98, takeProfit: 104 });
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(20);
+      candles.push(bar(20, { low: 99.8, high: 104.2, close: 104 }));
+
+      const run = engine.run(
+        buildConfig({ costs: { commissionPerFill: 0, slippagePct: 0.001, halfSpread: 0.01 } }),
+        candles,
+      );
+      const trade = run.trades[0];
+
+      expect(trade.exitSlippageAmount).toBe(0);
+      expect(trade.exitSpreadAmount).toBe(0);
+      expect(trade.entrySlippageAmount).toBeGreaterThan(0);
+      expect(trade.entrySpreadAmount).toBeGreaterThan(0);
+    });
+  });
+
+  describe("LIMIT execution mode — Block 4.5", () => {
+    it("fills exactly at the limit price (no slippage/spread) when a later candle touches it", () => {
+      const strategy = createTriggerStrategy({ triggerAtLength: 20, entry: 100, stopLoss: 98, takeProfit: 104 });
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(20); // trigger candle (index 19) — high/low irrelevant to the fill check
+      candles.push(bar(20, { low: 99.5, high: 100.5 })); // NEXT candle touches the limit (low <= 100)
+
+      const run = engine.run(
+        buildConfig({
+          executionMode: "LIMIT",
+          costs: { commissionPerFill: 0, slippagePct: 0.001, halfSpread: 0.01 },
+        }),
+        candles,
+      );
+
+      expect(run.trades).toHaveLength(1);
+      expect(run.trades[0].entryPrice).toBe(100); // exact limit price, no adjustment
+      expect(run.trades[0].entrySlippageAmount).toBe(0);
+      expect(run.trades[0].entrySpreadAmount).toBe(0);
+      expect(run.trades[0].entryAt).toBe(candles[20].timestamp); // filled on the NEXT candle, not the signal candle
+      expect(run.noFillCount).toBe(0);
+    });
+
+    it("never fills using the signal candle's own high/low, even when that candle alone would satisfy the condition (no-look-ahead)", () => {
+      const strategy = createTriggerStrategy({ triggerAtLength: 20, entry: 100, stopLoss: 98, takeProfit: 104 });
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(19);
+      // The trigger candle (index 19) itself touches the limit price in its
+      // own low — a look-ahead bug would fill immediately using this bar's
+      // own data. The correctly-implemented engine must ignore it.
+      candles.push(bar(19, { low: 99, high: 100.5 }));
+      // The very next candle (default limitOrderTimeoutBars=1, so this is
+      // the ONLY candle actually checked) never touches the limit.
+      candles.push(bar(20, { low: 100.5, high: 101 }));
+
+      const run = engine.run(buildConfig({ executionMode: "LIMIT" }), candles);
+
+      expect(run.trades).toHaveLength(0);
+      expect(run.noFillCount).toBe(1);
+    });
+
+    it("cancels as NO_FILL once limitOrderTimeoutBars elapses without a touch, and never opens a position", () => {
+      const strategy = createTriggerStrategy({ triggerAtLength: 20, entry: 100, stopLoss: 98, takeProfit: 104 });
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      const candles = buildFlatCandles(20);
+      for (let i = 0; i < 3; i++) candles.push(bar(20 + i, { low: 100.5, high: 101 })); // never touches 100
+
+      const run = engine.run(buildConfig({ executionMode: "LIMIT", limitOrderTimeoutBars: 2 }), candles);
+
+      expect(run.trades).toHaveLength(0);
+      expect(run.noFillCount).toBe(1);
+    });
+
+    it("a pending LIMIT order blocks re-evaluating the strategy every bar, instead of silently replacing it", () => {
+      const counter = { calls: 0 };
+      const strategy = createCountingAlwaysBuyStrategy(counter);
+      const manager = buildManagerWithStrategy(strategy);
+      const engine = createEventDrivenBacktestEngine(manager);
+
+      // Strictly increasing closes, low always just under its own bar's
+      // close — no bar's low can ever touch an earlier (lower) limit
+      // price, so no order ever fills and every one times out.
+      const candles: Candle[] = [];
+      for (let i = 0; i < 10; i++) {
+        const close = 100 + 5 * i;
+        candles.push(bar(i, { open: close, close, high: close + 0.1, low: close - 0.1 }));
+      }
+
+      const run = engine.run(
+        buildConfig({ strategyIds: ["counting-always-buy"], executionMode: "LIMIT", limitOrderTimeoutBars: 3 }),
+        candles,
+      );
+
+      expect(run.trades).toHaveLength(0);
+      // Orders placed at i=0,3,6,9 -> 4 calls, not one per bar (10).
+      expect(counter.calls).toBe(4);
+      expect(run.noFillCount).toBe(4);
     });
   });
 

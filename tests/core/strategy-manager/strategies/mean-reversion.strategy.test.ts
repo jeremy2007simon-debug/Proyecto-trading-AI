@@ -130,4 +130,25 @@ describe("meanReversionStrategy", () => {
 
     expect(fromPrefixOfLonger).toEqual(fromShort);
   });
+
+  describe("timeframe generalization (Block 4.5, Phase 5)", () => {
+    it("declares support for 5m/15m/30m/1h, not just 15m", () => {
+      expect(meanReversionStrategy.supportedTimeframes).toEqual(["15m", "5m", "30m", "1h"]);
+    });
+
+    it("produces the same coherent BUY signal when the same fixture is labeled as a different timeframe", () => {
+      // The rule set never reads `candle.timeframe`/`input.timeframe` in
+      // its math (only EMA20/ATR14/RSI14/VWAP over OHLC) — this proves
+      // widening `supportedTimeframes` didn't require, and didn't get,
+      // any change to `generateSignal` itself.
+      const drop = buildDropFixture(2, 0.008).map((c): Candle => ({ ...c, timeframe: "1h" }));
+      const signal = meanReversionStrategy.generateSignal(baseInput(drop, { timeframe: "1h" }));
+
+      expect(signal.signal).toBe("BUY");
+      expect(signal.entry).toBeDefined();
+      expect(signal.stopLoss).toBeLessThan(signal.entry!);
+      expect(signal.takeProfit).toBeGreaterThan(signal.entry!);
+      expect(signal.rulesFailed).toEqual([]);
+    });
+  });
 });

@@ -131,4 +131,8 @@ describe("trendFollowingStrategy", () => {
 
     expect(fromPrefixOfLonger).toEqual(fromFullHistory);
   });
+
+  it("was not touched by Block 4.5's timeframe generalization (still 15m-only)", () => {
+    expect(trendFollowingStrategy.supportedTimeframes).toEqual(["15m"]);
+  });
 });

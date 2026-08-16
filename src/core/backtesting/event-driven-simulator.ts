@@ -12,6 +12,8 @@ import { createDayState, evaluateDailyRiskGate, type DayState } from "@/core/bac
 import { resolveIntrabarExit } from "@/core/backtesting/same-candle-resolver";
 import {
   BacktestSimulationError,
+  DEFAULT_EXECUTION_MODE,
+  DEFAULT_LIMIT_ORDER_TIMEOUT_BARS,
   type BacktestConfig,
   type BacktestingEngine,
   type BacktestRun,
@@ -53,14 +55,34 @@ function validateCandles(candles: readonly Candle[]): void {
   }
 }
 
+/** Breakdown of a cost-adjusted fill — always kept separate so callers can tell slippage and spread apart (Block 4.5, Phase 1/3) instead of only ever seeing their combined effect on price. */
+interface CostAdjustedFill {
+  price: number;
+  /** $ total for this fill (already multiplied by quantity), pure slippage component. */
+  slippageAmount: number;
+  /** $ total for this fill (already multiplied by quantity), pure half-spread component. */
+  spreadAmount: number;
+}
+
 /**
  * Adverse fill adjustment for an ENTRY: a BUY entry pays more (price
  * moves up against you), a SELL entry (opening short) receives less
  * (price moves down against you).
  */
-function applyEntryCost(price: number, direction: "BUY" | "SELL", costs: ExecutionCostConfig): number {
+function applyEntryCost(
+  price: number,
+  direction: "BUY" | "SELL",
+  quantity: number,
+  costs: ExecutionCostConfig,
+): CostAdjustedFill {
   const adverseSign = direction === "BUY" ? 1 : -1;
-  return price + adverseSign * (price * costs.slippagePct + costs.halfSpread);
+  const slippagePerUnit = price * costs.slippagePct;
+  const spreadPerUnit = costs.halfSpread;
+  return {
+    price: price + adverseSign * (slippagePerUnit + spreadPerUnit),
+    slippageAmount: slippagePerUnit * quantity,
+    spreadAmount: spreadPerUnit * quantity,
+  };
 }
 
 /**
@@ -70,10 +92,23 @@ function applyEntryCost(price: number, direction: "BUY" | "SELL", costs: Executi
  * — they're treated as a resting limit order filling exactly at its
  * price (see `ExecutionCostConfig` docs).
  */
-function applyMarketExitCost(price: number, direction: "BUY" | "SELL", costs: ExecutionCostConfig): number {
+function applyMarketExitCost(
+  price: number,
+  direction: "BUY" | "SELL",
+  quantity: number,
+  costs: ExecutionCostConfig,
+): CostAdjustedFill {
   const adverseSign = direction === "BUY" ? -1 : 1;
-  return price + adverseSign * (price * costs.slippagePct + costs.halfSpread);
+  const slippagePerUnit = price * costs.slippagePct;
+  const spreadPerUnit = costs.halfSpread;
+  return {
+    price: price + adverseSign * (slippagePerUnit + spreadPerUnit),
+    slippageAmount: slippagePerUnit * quantity,
+    spreadAmount: spreadPerUnit * quantity,
+  };
 }
+
+const NO_FILL_COST: Pick<CostAdjustedFill, "slippageAmount" | "spreadAmount"> = { slippageAmount: 0, spreadAmount: 0 };
 
 interface OpenPosition {
   direction: "BUY" | "SELL";
@@ -89,7 +124,32 @@ interface OpenPosition {
   marketRegimeAtEntry: MarketRegime;
   indicatorsAtEntry: IndicatorSnapshot;
   rulesTriggered: string[];
-  entrySlippagePaid: number;
+  entrySlippageAmount: number;
+  entrySpreadAmount: number;
+}
+
+/**
+ * A signal that became a resting LIMIT order instead of an immediate
+ * fill (`config.executionMode === "LIMIT"`). Lives independently of
+ * `OpenPosition` — at most one of the two exists at a time, mirroring
+ * "only one position at a time" for the pre-fill state. Checked against
+ * candles strictly AFTER `placedAtIndex` only, so a fill decision never
+ * uses the signal candle's own future-relative-to-itself data — see
+ * the fill-checking loop in `simulateSingleStrategy` for the guarantee.
+ */
+interface PendingLimitOrder {
+  direction: "BUY" | "SELL";
+  limitPrice: number;
+  stopLoss: number;
+  takeProfit?: number;
+  placedAtIndex: number;
+  strategyId: string;
+  strategyVersion: string;
+  marketRegimeAtEntry: MarketRegime;
+  indicatorsAtEntry: IndicatorSnapshot;
+  rulesTriggered: string[];
+  riskAmount: number;
+  positionSize: number;
 }
 
 function closeTrade(
@@ -103,11 +163,18 @@ function closeTrade(
   costs: ExecutionCostConfig,
 ): BacktestTrade {
   const isMarketStyleExit = exitReason === "STOP_LOSS" || exitReason === "TIME_EXIT";
-  const exitPrice = isMarketStyleExit ? applyMarketExitCost(rawExitPrice, position.direction, costs) : rawExitPrice;
-  const exitSlippagePaid = isMarketStyleExit ? Math.abs(exitPrice - rawExitPrice) * position.positionSize : 0;
+  const exitFill: CostAdjustedFill = isMarketStyleExit
+    ? applyMarketExitCost(rawExitPrice, position.direction, position.positionSize, costs)
+    : { price: rawExitPrice, ...NO_FILL_COST };
   const commissionPaid = costs.commissionPerFill * 2; // entry + exit, each a separate fill
   const directionSign = position.direction === "BUY" ? 1 : -1;
-  const pnlAmount = (exitPrice - position.entryPrice) * position.positionSize * directionSign - commissionPaid;
+
+  // Algebraic invariant (see docs/BLOCK4_5_STRATEGY_RESEARCH_REPORT.md §1):
+  // grossPnlAmount - (commission + all four cost components) === pnlAmount,
+  // exactly, since pnlAmount is derived from cost-adjusted prices and
+  // grossPnlAmount from raw ones using the same directionSign.
+  const grossPnlAmount = (rawExitPrice - position.rawEntryPrice) * position.positionSize * directionSign;
+  const pnlAmount = (exitFill.price - position.entryPrice) * position.positionSize * directionSign - commissionPaid;
   const pnlR = position.riskAmount > 0 ? pnlAmount / position.riskAmount : 0;
 
   return {
@@ -120,15 +187,21 @@ function closeTrade(
     entryPrice: position.entryPrice,
     stopLoss: position.stopLoss,
     takeProfit: position.takeProfit,
-    exitPrice,
+    exitPrice: exitFill.price,
     entryAt: position.entryAt,
     exitAt,
     exitReason,
     ambiguousIntrabarExit: ambiguous,
+    grossPnlAmount,
     pnlAmount,
     pnlR,
     commissionPaid,
-    slippagePaid: position.entrySlippagePaid + exitSlippagePaid,
+    slippagePaid:
+      position.entrySlippageAmount + position.entrySpreadAmount + exitFill.slippageAmount + exitFill.spreadAmount,
+    entrySlippageAmount: position.entrySlippageAmount,
+    entrySpreadAmount: position.entrySpreadAmount,
+    exitSlippageAmount: exitFill.slippageAmount,
+    exitSpreadAmount: exitFill.spreadAmount,
     marketRegimeAtEntry: position.marketRegimeAtEntry,
     indicatorsAtEntry: position.indicatorsAtEntry,
     rulesTriggered: position.rulesTriggered,
@@ -175,9 +248,13 @@ function simulateSingleStrategy(
   const positionSizer = createPositionSizer();
   const trades: BacktestTrade[] = [];
   let openPosition: OpenPosition | undefined;
+  let pendingLimitOrder: PendingLimitOrder | undefined;
+  let noFillCount = 0;
   let equity = config.initialCapital;
   let dayState: DayState = createDayState("");
   let dayStartEquity = equity;
+  const executionMode = config.executionMode ?? DEFAULT_EXECUTION_MODE;
+  const limitOrderTimeoutBars = config.limitOrderTimeoutBars ?? DEFAULT_LIMIT_ORDER_TIMEOUT_BARS;
 
   for (let i = 0; i < candles.length; i++) {
     const candle = candles[i];
@@ -185,6 +262,46 @@ function simulateSingleStrategy(
     if (dateKey !== dayState.dateKey) {
       dayState = createDayState(dateKey);
       dayStartEquity = equity;
+    }
+
+    // A pending LIMIT order is checked strictly on candles AFTER the one
+    // that placed it (`i > pendingLimitOrder.placedAtIndex` is always
+    // true here, since it's only ever set at the END of the iteration
+    // that created it — see below) — the fill decision never looks at
+    // the signal candle's own high/low, which is what makes this
+    // no-look-ahead in the same sense as `resolveIntrabarExit`.
+    if (pendingLimitOrder) {
+      const filled =
+        pendingLimitOrder.direction === "BUY"
+          ? candle.low <= pendingLimitOrder.limitPrice
+          : candle.high >= pendingLimitOrder.limitPrice;
+
+      if (filled) {
+        openPosition = {
+          direction: pendingLimitOrder.direction,
+          entryPrice: pendingLimitOrder.limitPrice,
+          rawEntryPrice: pendingLimitOrder.limitPrice,
+          stopLoss: pendingLimitOrder.stopLoss,
+          takeProfit: pendingLimitOrder.takeProfit,
+          entryAt: candle.timestamp,
+          positionSize: pendingLimitOrder.positionSize,
+          riskAmount: pendingLimitOrder.riskAmount,
+          strategyId: pendingLimitOrder.strategyId,
+          strategyVersion: pendingLimitOrder.strategyVersion,
+          marketRegimeAtEntry: pendingLimitOrder.marketRegimeAtEntry,
+          indicatorsAtEntry: pendingLimitOrder.indicatorsAtEntry,
+          rulesTriggered: pendingLimitOrder.rulesTriggered,
+          // A resting limit order that fills pays neither slippage nor
+          // spread — it fills exactly at the price it was resting at.
+          entrySlippageAmount: 0,
+          entrySpreadAmount: 0,
+        };
+        dayState.tradesOpened += 1;
+        pendingLimitOrder = undefined;
+      } else if (i - pendingLimitOrder.placedAtIndex >= limitOrderTimeoutBars) {
+        noFillCount += 1;
+        pendingLimitOrder = undefined;
+      }
     }
 
     if (openPosition) {
@@ -211,7 +328,7 @@ function simulateSingleStrategy(
       }
     }
 
-    if (!openPosition) {
+    if (!openPosition && !pendingLimitOrder) {
       const gate = evaluateDailyRiskGate(dayState, DEFAULT_RISK_RULES);
       if (gate.allowed) {
         const candlesSoFar = candles.slice(0, i + 1);
@@ -250,24 +367,45 @@ function simulateSingleStrategy(
           });
 
           if (sizing.positionSize > 0) {
-            const entryPrice = applyEntryCost(signal.entry, signal.signal, config.costs);
-            openPosition = {
-              direction: signal.signal,
-              entryPrice,
-              rawEntryPrice: signal.entry,
-              stopLoss: signal.stopLoss,
-              takeProfit: signal.takeProfit,
-              entryAt: candle.timestamp,
-              positionSize: sizing.positionSize,
-              riskAmount: sizing.riskAmount,
-              strategyId: strategy.id,
-              strategyVersion: strategy.version,
-              marketRegimeAtEntry: regime,
-              indicatorsAtEntry: indicators,
-              rulesTriggered: signal.rulesTriggered,
-              entrySlippagePaid: Math.abs(entryPrice - signal.entry) * sizing.positionSize,
-            };
-            dayState.tradesOpened += 1;
+            if (executionMode === "MARKET") {
+              const entryFill = applyEntryCost(signal.entry, signal.signal, sizing.positionSize, config.costs);
+              openPosition = {
+                direction: signal.signal,
+                entryPrice: entryFill.price,
+                rawEntryPrice: signal.entry,
+                stopLoss: signal.stopLoss,
+                takeProfit: signal.takeProfit,
+                entryAt: candle.timestamp,
+                positionSize: sizing.positionSize,
+                riskAmount: sizing.riskAmount,
+                strategyId: strategy.id,
+                strategyVersion: strategy.version,
+                marketRegimeAtEntry: regime,
+                indicatorsAtEntry: indicators,
+                rulesTriggered: signal.rulesTriggered,
+                entrySlippageAmount: entryFill.slippageAmount,
+                entrySpreadAmount: entryFill.spreadAmount,
+              };
+              dayState.tradesOpened += 1;
+            } else {
+              // LIMIT: rest an order at the signal's own price instead of
+              // filling immediately — it may go unfilled (see the
+              // fill-check block at the top of this loop).
+              pendingLimitOrder = {
+                direction: signal.signal,
+                limitPrice: signal.entry,
+                stopLoss: signal.stopLoss,
+                takeProfit: signal.takeProfit,
+                placedAtIndex: i,
+                strategyId: strategy.id,
+                strategyVersion: strategy.version,
+                marketRegimeAtEntry: regime,
+                indicatorsAtEntry: indicators,
+                rulesTriggered: signal.rulesTriggered,
+                riskAmount: sizing.riskAmount,
+                positionSize: sizing.positionSize,
+              };
+            }
           }
         }
       }
@@ -289,6 +427,12 @@ function simulateSingleStrategy(
     trades.push(trade);
     equity += trade.pnlAmount!;
   }
+  // A LIMIT order still resting when the dataset ends never got the
+  // chance to time out naturally — it's cancelled the same way, never
+  // silently dropped from `noFillCount`.
+  if (pendingLimitOrder) {
+    noFillCount += 1;
+  }
 
   const periodStart = candles[0]?.timestamp ?? config.dateFrom;
   const periodEnd = candles[candles.length - 1]?.timestamp ?? config.dateTo;
@@ -302,6 +446,7 @@ function simulateSingleStrategy(
     completedAt: new Date().toISOString(),
     trades,
     metrics,
+    noFillCount,
   };
 }
 

@@ -142,4 +142,8 @@ describe("breakoutStrategy", () => {
 
     expect(fromPrefixOfLonger).toEqual(fromShort);
   });
+
+  it("was not touched by Block 4.5's timeframe generalization (still 15m-only)", () => {
+    expect(breakoutStrategy.supportedTimeframes).toEqual(["15m"]);
+  });
 });

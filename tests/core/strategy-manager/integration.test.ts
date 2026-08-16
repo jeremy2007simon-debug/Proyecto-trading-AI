@@ -69,11 +69,17 @@ function assertWellFormedSignal(signal: StrategySignal) {
   }
 }
 
+const ALL_STRATEGIES = [trendFollowingStrategy, breakoutStrategy, vwapStrategy, meanReversionStrategy, openingRangeBreakoutStrategy];
+
 describe("Strategy Manager integration (synthetic SPY-like candles, no broker/network)", () => {
-  it("runs candles -> indicators -> regime -> strategy manager -> 5 strategies -> exactly 5 well-formed signals", async () => {
-    // The 4 non-ORB strategies run on 15m; Opening Range Breakout is
-    // 5m-only (supportedTimeframes) — mirroring how the real orchestrator
-    // (`getStrategySignals`) is called once per timeframe.
+  it("runs candles -> indicators -> regime -> strategy manager -> a well-formed signal for every (strategy, timeframe) it actually supports", async () => {
+    // Block 4.5 (Phase 5) widened Mean Reversion to 5m/15m/30m/1h and
+    // Opening Range Breakout to 1m/5m/15m/30m — so at 15m, ALL 5
+    // strategies are now eligible (not just the original 4), and at 5m,
+    // both Mean Reversion and Opening Range Breakout are eligible (not
+    // just ORB). The expected signal set below is derived from each
+    // strategy's own `supportedTimeframes` rather than hardcoded, so
+    // this test can't go stale the next time a capability changes.
     const candles15m = await fetchCandles("15m", 250);
     const indicators15m = computeIndicatorSnapshot(candles15m, calendar);
     const regime15m = createRuleBasedRegimeDetector().detect({
@@ -111,14 +117,15 @@ describe("Strategy Manager integration (synthetic SPY-like candles, no broker/ne
     });
 
     const allSignals = [...signals15m, ...signals5m];
-    expect(allSignals).toHaveLength(5);
-    expect(allSignals.map((s) => s.strategyId).sort()).toEqual([
-      "breakout",
-      "mean-reversion",
-      "opening-range-breakout",
-      "trend-following",
-      "vwap",
-    ]);
+
+    const expectedPairs = ALL_STRATEGIES.flatMap((s) =>
+      (["15m", "5m"] as const).filter((tf) => s.supportedTimeframes.includes(tf)).map((tf) => `${s.id}@${tf}`),
+    ).sort();
+    const actualPairs = [
+      ...signals15m.map((s) => `${s.strategyId}@15m`),
+      ...signals5m.map((s) => `${s.strategyId}@5m`),
+    ].sort();
+    expect(actualPairs).toEqual(expectedPairs);
 
     for (const signal of allSignals) assertWellFormedSignal(signal);
   });

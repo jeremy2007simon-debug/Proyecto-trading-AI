@@ -14,6 +14,9 @@ function median(values: readonly number[]): number {
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
+/** See the Sortino fix note below — a stdev of R-multiples below this is floating-point noise, not real variance. */
+const MIN_MEANINGFUL_STDEV = 1e-6;
+
 function stdev(values: readonly number[]): number {
   if (values.length < 2) return 0;
   const m = mean(values);
@@ -144,9 +147,19 @@ export function computeBacktestMetrics(
     // trade sequence, UNANNUALIZED — not the classical daily-return
     // Sharpe ratio. Documented approximation, undefined (not fabricated
     // as 0) when there are fewer than 2 trades or zero variance.
+    //
+    // Block 4.5 fix: the denominator is compared against
+    // MIN_MEANINGFUL_STDEV, not exact zero. R-multiples are O(1), so a
+    // standard deviation below 1e-6 is floating-point noise, not a real
+    // signal — e.g. a zero-cost run where nearly every losing trade
+    // closes at exactly -1.00R can produce a `downsideReturns` stdev of
+    // ~1e-13 instead of exact 0, and dividing by that produced absurd
+    // values (observed: -2.65e15) in the Block 4 report. When downside
+    // deviation is ~0, Sortino is undefined — there is no meaningful
+    // variance to normalize by, never an extreme ratio.
     sharpeRatio: trades.length >= 2 && sharpeDenominator > 0 ? mean(rReturns) / sharpeDenominator : undefined,
     sortinoRatio:
-      trades.length >= 2 && downsideReturns.length > 0 && sortinoDenominator > 0
+      trades.length >= 2 && downsideReturns.length > 0 && sortinoDenominator > MIN_MEANINGFUL_STDEV
         ? mean(rReturns) / sortinoDenominator
         : undefined,
     consecutiveWins: maxConsecutive(trades, (t) => (t.pnlAmount ?? 0) > 0),

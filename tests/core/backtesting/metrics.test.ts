@@ -16,6 +16,10 @@ function trade(overrides: Partial<BacktestTrade>): BacktestTrade {
     ambiguousIntrabarExit: false,
     commissionPaid: 0,
     slippagePaid: 0,
+    entrySlippageAmount: 0,
+    entrySpreadAmount: 0,
+    exitSlippageAmount: 0,
+    exitSpreadAmount: 0,
     rulesTriggered: [],
     ...overrides,
   };
@@ -154,6 +158,23 @@ describe("computeBacktestMetrics", () => {
         trade({ pnlAmount: 10, pnlR: 2 }),
         trade({ pnlAmount: -10, pnlR: -1 }),
         trade({ pnlAmount: -10, pnlR: -1 }),
+      ];
+      const metrics = computeBacktestMetrics(trades, 10_000, "2024-06-17T00:00:00Z", "2024-06-18T00:00:00Z");
+      expect(metrics.sortinoRatio).toBeUndefined();
+    });
+
+    it("is undefined (never an absurd extreme value) when downside deviation is near-zero but not exact-zero", () => {
+      // Block 4.5 fix: this reproduces the real bug found in the Block 4
+      // report — a zero-cost run where losing trades close at ~identical
+      // R (here off by 1e-10, simulating floating-point noise rather than
+      // a true zero) used to produce a denominator like 1e-10 and a
+      // Sortino ratio in the trillions (observed: -2.65e15). It must now
+      // be undefined, exactly like the true-zero-variance case above.
+      const trades = [
+        trade({ pnlAmount: 20, pnlR: 2 }),
+        trade({ pnlAmount: -10, pnlR: -1 }),
+        trade({ pnlAmount: -10.0000001, pnlR: -1 + 1e-10 }),
+        trade({ pnlAmount: -9.9999999, pnlR: -1 - 1e-10 }),
       ];
       const metrics = computeBacktestMetrics(trades, 10_000, "2024-06-17T00:00:00Z", "2024-06-18T00:00:00Z");
       expect(metrics.sortinoRatio).toBeUndefined();

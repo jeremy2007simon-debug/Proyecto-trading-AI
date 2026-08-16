@@ -36,10 +36,15 @@ export function computeBuyAndHoldBaseline(candles: readonly Candle[], initialCap
     exitAt: last.timestamp,
     exitReason: "TIME_EXIT",
     ambiguousIntrabarExit: false,
+    grossPnlAmount: pnlAmount,
     pnlAmount,
     pnlR: 0, // undefined risk basis — see doc comment above
     commissionPaid: 0,
     slippagePaid: 0,
+    entrySlippageAmount: 0,
+    entrySpreadAmount: 0,
+    exitSlippageAmount: 0,
+    exitSpreadAmount: 0,
     rulesTriggered: [],
   };
 

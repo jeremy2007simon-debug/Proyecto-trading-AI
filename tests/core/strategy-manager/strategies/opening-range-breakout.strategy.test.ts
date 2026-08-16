@@ -205,4 +205,54 @@ describe("openingRangeBreakoutStrategy", () => {
 
     expect(fromPrefixOfLonger).toEqual(fromShort);
   });
+
+  describe("timeframe generalization (Block 4.5, Phase 5)", () => {
+    it("declares support for 1m/5m/15m/30m, not just 5m", () => {
+      expect(openingRangeBreakoutStrategy.supportedTimeframes).toEqual(["5m", "1m", "15m", "30m"]);
+    });
+
+    it("produces a coherent BUY signal on 15m too, where the default 15-minute opening range is exactly one bar", () => {
+      const FIFTEEN_MIN_MS = 900_000;
+      const bar15 = (timestampMs: number, overrides: Partial<Candle>): Candle => ({
+        market: "SP500",
+        timeframe: "15m",
+        symbol: "SPY",
+        provider: "test",
+        timestamp: new Date(timestampMs).toISOString(),
+        open: 100,
+        high: 100.3,
+        low: 99.7,
+        close: 100,
+        volume: 100_000,
+        ...overrides,
+      });
+      const sessionStart = sessionStartMs(DST_DAY_UTC);
+      const warmup: Candle[] = [];
+      for (let i = 25; i >= 1; i--) warmup.push(bar15(sessionStart - i * FIFTEEN_MIN_MS, {}));
+      const openingRangeBar = bar15(sessionStart, { high: 100.3, low: 99.7, close: 100 });
+      const breakoutBar = bar15(sessionStart + FIFTEEN_MIN_MS, {
+        open: 100.2,
+        high: 103,
+        low: 100.1,
+        close: 102.5,
+        volume: 200_000,
+      });
+      const candles = [...warmup, openingRangeBar, breakoutBar];
+
+      const signal = openingRangeBreakoutStrategy.generateSignal(baseInput(candles, { timeframe: "15m" }));
+
+      expect(signal.signal).toBe("BUY");
+      expect(signal.entry).toBe(102.5);
+      expect(signal.rulesFailed).toEqual([]);
+    });
+
+    it("with the default openingRangeMinutes=15 (never adjusted), 30m never signals — 15 isn't a multiple of 30 (documented robustness finding, not a bug)", () => {
+      const signal = openingRangeBreakoutStrategy.generateSignal(
+        baseInput(buildUpBreakoutFixture(DST_DAY_UTC), { timeframe: "30m" }),
+      );
+
+      expect(signal.signal).toBe("WAIT");
+      expect(signal.rulesFailed).toEqual(["INVALID_OPENING_RANGE_CONFIGURATION"]);
+    });
+  });
 });

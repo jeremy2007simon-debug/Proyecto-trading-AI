@@ -133,6 +133,19 @@ function rowToTrade(row: BacktestTradeRow): BacktestTrade {
     pnlR: row.pnl_r !== null ? Number(row.pnl_r) : undefined,
     commissionPaid: Number(row.commission_paid),
     slippagePaid: Number(row.slippage_paid),
+    // The Block 4.5 spread/slippage breakdown (§1 of the research report)
+    // isn't persisted to `backtest_trades` — this repository, and the
+    // schema it maps to, predate that breakdown, and neither the
+    // dashboard nor the DB-backed orchestrator (`backtest.server.ts`)
+    // consume it. The research scripts that DO need it bypass the DB
+    // entirely (same convention as `run-backtest-experiment.ts`), so a
+    // migration for these four columns isn't warranted yet. Rows read
+    // back from the DB honestly report zero breakdown rather than
+    // fabricating a split of the combined `slippage_paid` total.
+    entrySlippageAmount: 0,
+    entrySpreadAmount: 0,
+    exitSlippageAmount: 0,
+    exitSpreadAmount: 0,
     marketRegimeAtEntry: row.market_regime_at_entry ?? undefined,
     indicatorsAtEntry: row.indicators_at_entry ?? undefined,
     rulesTriggered: row.rules_triggered ?? [],

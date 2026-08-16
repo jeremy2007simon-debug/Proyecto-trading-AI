@@ -151,7 +151,12 @@ export const meanReversionStrategy: Strategy = {
   version: "1.0.0",
   enabled: true,
   supportedMarkets: ["SP500"],
-  supportedTimeframes: ["15m"],
+  // Widened in Block 4.5 (Phase 5) to test timeframe robustness — the
+  // rule set itself is fully timeframe-agnostic (EMA20/ATR14/RSI14/VWAP
+  // all recompute generically from whatever candles they're given), so
+  // this is a capability declaration only; `generateSignal` is
+  // unchanged. "15m" (first) stays the originally-validated timeframe.
+  supportedTimeframes: ["15m", "5m", "30m", "1h"],
   // Fixed, not just an initial guess: mean reversion is only evaluated
   // while the regime detector confirms RANGE or LOW_VOLATILITY — this is
   // the strategy's ONLY guard against fading a genuine strong trend, per

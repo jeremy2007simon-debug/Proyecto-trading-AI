@@ -18,7 +18,14 @@ export type Market =
   | "NASDAQ100"
   | "FOREX_EURUSD"
   | "GOLD"
-  | "BITCOIN";
+  | "BITCOIN"
+  // Added in Block 4.5 (Phase 7, cross-asset strategy validation) —
+  // Russell 2000 and Dow Jones Industrial, both traded via their
+  // standard ETF proxies (see `instruments.ts`). Purely additive: kept
+  // out of `ACTIVE_MARKETS` below, so the live dashboard/production
+  // pipeline behavior is unchanged.
+  | "RUSSELL2000"
+  | "DOWJONES";
 
 export const ACTIVE_MARKETS: readonly Market[] = ["SP500"] as const;
 

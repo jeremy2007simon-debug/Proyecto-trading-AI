@@ -58,6 +58,23 @@ export const REALISTIC_COST_SCENARIO: ExecutionCostConfig = {
 export type SameCandlePolicy = "CONSERVATIVE" | "OPTIMISTIC";
 export const DEFAULT_SAME_CANDLE_POLICY: SameCandlePolicy = "CONSERVATIVE";
 
+/**
+ * How a signal becomes a fill (Block 4.5, Phase 4). `MARKET` (the
+ * required default, identical to every prior block's behavior) fills
+ * immediately at the signal's own candle, adversely adjusted by
+ * `ExecutionCostConfig`. `LIMIT` places a resting order at the signal's
+ * exact price instead — it may go unfilled (`NO_FILL`, tracked on
+ * `BacktestRun.noFillCount`, never silently dropped) if price never
+ * returns to that level within `limitOrderTimeoutBars`. See
+ * `event-driven-simulator.ts` for the fill-checking algorithm and its
+ * no-look-ahead guarantee (only candles strictly after the signal candle
+ * are ever inspected).
+ */
+export type ExecutionMode = "MARKET" | "LIMIT";
+export const DEFAULT_EXECUTION_MODE: ExecutionMode = "MARKET";
+/** How many candles (strictly after the signal candle) a LIMIT order stays live before being cancelled as NO_FILL. */
+export const DEFAULT_LIMIT_ORDER_TIMEOUT_BARS = 1;
+
 /** Chronological (never shuffled) percentage split of a candle series. */
 export interface DatasetSplitConfig {
   trainPct: number;
@@ -139,6 +156,10 @@ export interface BacktestConfig {
   sameCandlePolicy: SameCandlePolicy;
   /** Present only when the caller wants the run split into train/validation/out-of-sample. */
   datasetSplit?: DatasetSplitConfig;
+  /** @default "MARKET" — see `ExecutionMode`. */
+  executionMode?: ExecutionMode;
+  /** @default DEFAULT_LIMIT_ORDER_TIMEOUT_BARS — only meaningful when `executionMode === "LIMIT"`. */
+  limitOrderTimeoutBars?: number;
 }
 
 /**
@@ -169,10 +190,21 @@ export interface BacktestTrade {
   exitReason?: ExitReason;
   /** True when this trade's exit bar touched both stopLoss and takeProfit — see `SameCandlePolicy`. */
   ambiguousIntrabarExit: boolean;
+  /** P&L using raw (unadjusted) entry/exit prices — as if commission, slippage, and spread were all zero. Never negative-costs-adjusted; see `pnlAmount` for the net figure actually realized. */
+  grossPnlAmount?: number;
   pnlAmount?: number;
   pnlR?: number;
   commissionPaid: number;
+  /** @deprecated total of the four granular fields below (`entrySlippageAmount + entrySpreadAmount + exitSlippageAmount + exitSpreadAmount`) — kept for compatibility with existing readers/DB rows; new code should read the granular fields instead of assuming this is "slippage alone" (it never was — it always included the half-spread too). */
   slippagePaid: number;
+  /** $ — pure slippage component paid at entry (0 for a LIMIT fill, which pays neither slippage nor spread). */
+  entrySlippageAmount: number;
+  /** $ — pure half-spread component paid at entry. */
+  entrySpreadAmount: number;
+  /** $ — pure slippage component paid at exit (always 0 for a TAKE_PROFIT exit, and for any LIMIT fill). */
+  exitSlippageAmount: number;
+  /** $ — pure half-spread component paid at exit (always 0 for a TAKE_PROFIT exit, and for any LIMIT fill). */
+  exitSpreadAmount: number;
   marketRegimeAtEntry?: MarketRegime;
   /** Indicator values the strategy actually saw at entry — audit trail (point 24). */
   indicatorsAtEntry?: IndicatorSnapshot;
@@ -228,6 +260,8 @@ export interface BacktestRun {
   errorMessage?: string;
   trades: BacktestTrade[];
   metrics?: BacktestMetrics;
+  /** Only meaningful when `config.executionMode === "LIMIT"`: signals that never got filled within `limitOrderTimeoutBars` and were cancelled — never silently dropped from the count. */
+  noFillCount?: number;
 }
 
 export type BacktestFailureCode =

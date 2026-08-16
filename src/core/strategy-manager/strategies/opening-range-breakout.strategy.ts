@@ -205,7 +205,16 @@ export const openingRangeBreakoutStrategy: Strategy = {
   version: "1.0.0",
   enabled: true,
   supportedMarkets: ["SP500"],
-  supportedTimeframes: ["5m"],
+  // Widened in Block 4.5 (Phase 5) to test timeframe robustness — the
+  // rule set itself is timeframe-agnostic (it already validates
+  // `openingRangeMinutes % timeframeMinutes === 0` generically). This is
+  // a capability declaration only; `generateSignal` is unchanged. Note
+  // the real, expected consequence of NOT touching the default
+  // parameters: with the default `openingRangeMinutes: 15`, "30m" never
+  // produces a signal (15 is not a multiple of 30) — a genuine
+  // robustness finding, not a bug. "5m" (first) stays the
+  // originally-validated timeframe.
+  supportedTimeframes: ["5m", "1m", "15m", "30m"],
   // Initial hypothesis: excludes RANGE/LOW_VOLATILITY/UNKNOWN (an opening
   // range break is a weaker signal when the broader session is already
   // rangebound or too quiet) — pending backtesting validation.
