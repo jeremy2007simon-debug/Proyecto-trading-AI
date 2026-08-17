@@ -5,15 +5,38 @@
 This is a **private, analysis-first** trading platform. It classifies market
 conditions, runs several independent strategies, combines their signals into
 one decision, and enforces hard risk limits before ever calling something a
-BUY or SELL. It does **not** trade real money, does **not** connect to a
-broker, and does **not** let any layer — including the AI explanation layer —
-bypass the risk rules.
+BUY or SELL. It does **not** trade real money and does **not** let any layer —
+including the AI explanation layer — bypass the risk rules.
 
 Hard constraints that shaped every decision below:
 
-- No real broker connection. No real order is ever placed by this codebase.
-- The `Execution` module exists only as a disabled, unimplemented interface
-  (`src/core/execution/types.ts`).
+- **No LIVE broker connection, ever, no exception.** No real order backed by
+  real money is ever placed by this codebase. This is absolute and does not
+  change with Block 6 (below).
+- **PAPER broker connection is permitted, starting with Block 6, under
+  exhaustive guards** — and only for one specific, frozen, independently
+  audited strategy candidate (`RS3M_CANDIDATE_V1`,
+  `src/core/paper-trading/rs3m/candidate.ts`), never for signals from the
+  Consensus/Signal Engine pipeline described below. This is a deliberate,
+  narrow evolution of the original "no broker connection at all" constraint —
+  not a relaxation of it. The connection is to Alpaca's PAPER Trading API
+  (`https://paper-api.alpaca.markets/v2`) only:
+  `src/core/execution/alpaca-paper-client.ts` hardcodes that URL as the
+  file's ONLY base-URL constant (no env var or config path can point it at
+  the live `api.alpaca.markets` endpoint — a structural guarantee, not a
+  conditional), and `src/core/paper-trading/rs3m/safety-guards.ts` re-asserts
+  this at runtime before any order-placing call, alongside a symbol
+  whitelist (SPY/QQQ/IWM/DIA only), no leverage/shorts/options/margin, and
+  duplicate-order/idempotency protection. See
+  `docs/BLOCK6_CANDIDATE_VERIFICATION_REPORT.md` for the full audit and
+  which of `PAPER_READY`/`PAPER_RUNNING`/`REJECTED` currently applies.
+- The `Execution` module below (`src/core/execution/types.ts`,
+  `ExecutionEngine`) remains a disabled, unimplemented interface tied to the
+  Consensus/Signal Engine pipeline's `FinalSignal` — it is unrelated to the
+  RS3M paper client above, which is a separate, narrowly-scoped module that
+  intentionally does not implement `ExecutionEngine` (RS3M does not go
+  through the Consensus Engine). `ExecutionEngine` continues to represent
+  real, LIVE execution, which stays out of scope entirely.
 - The Risk Engine is the single choke point between "the system wants to
   trade" and "the system may say BUY/SELL". Nothing may bypass it.
 - The AI layer explains; it never decides, sizes, or executes

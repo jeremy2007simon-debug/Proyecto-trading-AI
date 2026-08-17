@@ -254,6 +254,46 @@ export function getEasternWallClockParts(instant: Date): EasternParts {
   return getEasternParts(instant);
 }
 
+export interface CalendarDateOnly {
+  year: number;
+  month: number;
+  day: number;
+}
+
+/**
+ * Block 6 — the last NYSE trading day of a given calendar month (America/
+ * New_York), reusing the SAME holiday computation (`getNyseHolidays`) this
+ * module already has rather than a second, hand-maintained list. This is
+ * RS3M's monthly rebalance signal date: the ranking is computed from data
+ * through this day's close (see `docs/BLOCK6_CANDIDATE_VERIFICATION_REPORT.md`'s
+ * pipeline section).
+ */
+export function getLastTradingDayOfMonth(year: number, month: number): CalendarDateOnly {
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  for (let day = daysInMonth; day >= 1; day--) {
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    if (isTradingCalendarDay({ year, month, day }, weekday)) return { year, month, day };
+  }
+  throw new Error(`getLastTradingDayOfMonth: no trading day found in ${year}-${String(month).padStart(2, "0")}`);
+}
+
+/**
+ * Block 6 — the next NYSE trading day strictly after the given date.
+ * Publicly exposes the module's existing internal `nextTradingDayFrom`
+ * (already used for market-status transitions above) — RS3M's execution
+ * convention plans an order for the OPEN of this day, never the same
+ * close that generated the signal.
+ */
+export function getNextTradingDay(date: CalendarDateOnly): CalendarDateOnly {
+  return nextTradingDayFrom(date);
+}
+
+/** Block 6 — whether `date` (a plain calendar date, no time-of-day) is itself an NYSE trading day. Wraps the same holiday/weekend logic `createNyseCalendar(...).isTradingDay` uses for an instant, exposed here for callers that only have a calendar date (e.g. the idempotent scheduler's own "is today a trading day" check). */
+export function isCalendarDateTradingDay(date: CalendarDateOnly): boolean {
+  const weekday = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay();
+  return isTradingCalendarDay(date, weekday);
+}
+
 /** Concrete NYSE-hours calendar, used for SPY (the SP500 instrument proxy — see market-data/instruments.ts). */
 export function createNyseCalendar(market: Market = "SP500"): MarketHoursCalendar {
   return {

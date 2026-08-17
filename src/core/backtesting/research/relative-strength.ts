@@ -80,6 +80,41 @@ function periodReturn(series: Map<string, number>, fromMonth: string, toMonth: s
   return (to - from) / from;
 }
 
+export interface AssetRanking {
+  market: string;
+  trailingReturnPct: number;
+}
+
+/**
+ * Ranks `assets` by trailing return from `lookbackStartMonth` through
+ * `decisionMonth` (inclusive) — descending, best first. An asset with no
+ * price at either month boundary is simply omitted (never a fabricated
+ * 0%). Exported additively (Block 6) so `signal-calculator.ts` can reuse
+ * this EXACT ranking logic for a live decision instead of reimplementing
+ * it — `runRelativeStrengthBacktest` below calls this same function
+ * internally, so the backtest and the live signal path can never silently
+ * diverge.
+ */
+export function rankAssetsByTrailingReturn(
+  monthlySeriesByMarket: ReadonlyMap<string, Map<string, number>>,
+  assets: readonly string[],
+  lookbackStartMonth: string,
+  decisionMonth: string,
+): AssetRanking[] {
+  const ranked: AssetRanking[] = [];
+  for (const market of assets) {
+    const series = monthlySeriesByMarket.get(market);
+    if (!series) continue;
+    const trailingReturn = periodReturn(series, lookbackStartMonth, decisionMonth);
+    if (trailingReturn !== undefined) ranked.push({ market, trailingReturnPct: trailingReturn * 100 });
+  }
+  // Array.prototype.sort is stable (ES2019+): among ties, the asset that
+  // appeared EARLIEST in `assets` stays first — matching the strict `>`
+  // (never `>=`) comparison the original inline loop used here before
+  // this was extracted, so this refactor changes no historical result.
+  return ranked.sort((a, b) => b.trailingReturnPct - a.trailingReturnPct);
+}
+
 function mean(values: readonly number[]): number {
   return values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0;
 }
@@ -132,21 +167,20 @@ export function runRelativeStrengthBacktest(
     const holdMonth = allMonths[i + 1];
     const lookbackStartMonth = allMonths[i - config.lookbackMonths];
 
-    let best: { market: string; trailingReturn: number } | undefined;
-    for (const asset of assets) {
-      const series = monthlySeriesByMarket.get(asset.market)!;
-      const trailingReturn = periodReturn(series, lookbackStartMonth, decisionMonth);
-      if (trailingReturn !== undefined && (!best || trailingReturn > best.trailingReturn)) {
-        best = { market: asset.market, trailingReturn };
-      }
-    }
+    const ranking = rankAssetsByTrailingReturn(
+      monthlySeriesByMarket,
+      assets.map((a) => a.market),
+      lookbackStartMonth,
+      decisionMonth,
+    );
+    const bestMarket = ranking[0]?.market;
 
-    const grossReturn = best ? (periodReturn(monthlySeriesByMarket.get(best.market)!, decisionMonth, holdMonth) ?? 0) : 0;
-    const isRebalance = best?.market !== previousSelected;
+    const grossReturn = bestMarket ? (periodReturn(monthlySeriesByMarket.get(bestMarket)!, decisionMonth, holdMonth) ?? 0) : 0;
+    const isRebalance = bestMarket !== previousSelected;
     const realizedReturn = isRebalance ? grossReturn - rebalanceCostFraction : grossReturn;
-    previousSelected = best?.market;
+    previousSelected = bestMarket;
     strategyEquity *= 1 + realizedReturn;
-    periods.push({ decisionMonth, holdMonth, selectedMarket: best?.market, periodReturnPct: realizedReturn * 100 });
+    periods.push({ decisionMonth, holdMonth, selectedMarket: bestMarket, periodReturnPct: realizedReturn * 100 });
     strategyEquityCurve.push({ month: holdMonth, equity: strategyEquity });
 
     const benchmarkReturn = periodReturn(monthlySeriesByMarket.get(config.benchmarkMarket)!, decisionMonth, holdMonth) ?? 0;
