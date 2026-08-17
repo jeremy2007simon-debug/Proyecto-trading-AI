@@ -46,6 +46,11 @@ yarn-error.log*
 # audit-cost-model.ts, run-block45-deep-validation.ts) — same rationale.
 /.block4-5-results/
 
+# Block 5 Strategy Discovery & Validation Engine raw output
+# (scripts/research/**) — large, machine-generated research artifacts;
+# docs/BLOCK5_STRATEGY_DISCOVERY_REPORT.md (built from it) is what gets committed.
+/results/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -190,4 +190,15 @@ export const breakoutStrategy: Strategy = {
   compatibleRegimes: ["RANGE", "BREAKOUT", "HIGH_VOLATILITY"],
   defaultParameters: BREAKOUT_DEFAULT_PARAMETERS,
   generateSignal,
+  // Block 5 lifecycle marking — see docs/BLOCK4_BACKTESTING_REPORT.md.
+  // Kept registered (never deleted) for audit; not part of any Block 5
+  // research budget.
+  family: "LEGACY",
+  hypothesis:
+    "A decisive break of prior N-bar structure, confirmed by volume and intrabar range expansion, marks the start of a real directional move.",
+  status: "HISTORICAL_UNVALIDATED",
+  invalidationConditions: [
+    "Negative net expectancy at realistic execution cost over the 2-year real SPY backtest (Block 4).",
+    "Never taken through Block 4.5's deeper cost-sensitivity/OOS/walk-forward funnel — this status reflects that gap, not an equivalent rejection to Mean Reversion/ORB.",
+  ],
 };

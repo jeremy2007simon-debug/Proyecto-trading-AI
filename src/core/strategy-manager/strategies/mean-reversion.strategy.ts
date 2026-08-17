@@ -168,4 +168,15 @@ export const meanReversionStrategy: Strategy = {
   compatibleRegimes: ["RANGE", "LOW_VOLATILITY"],
   defaultParameters: MEAN_REVERSION_DEFAULT_PARAMETERS,
   generateSignal,
+  // Block 5 lifecycle marking — see docs/BLOCK4_5_STRATEGY_RESEARCH_REPORT.md.
+  // Kept registered (never deleted) for audit; not part of any Block 5
+  // research budget.
+  family: "LEGACY",
+  hypothesis:
+    "RSI extreme + price meaningfully extended from EMA20 in ATR terms + confirming VWAP side reverts toward EMA20.",
+  status: "HISTORICAL_REJECTED",
+  invalidationConditions: [
+    "Break-even transaction cost (~0.90bps) far below the realistic 5bps execution-cost scenario (Block 4.5, Phase 2).",
+    "Negative expectancyR out-of-sample and across the full 2016-2026 chronological split (Block 4.5, Phase 6).",
+  ],
 };

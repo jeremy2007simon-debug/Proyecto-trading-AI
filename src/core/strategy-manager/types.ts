@@ -69,6 +69,42 @@ export interface StrategySignalRecord extends StrategySignal {
 }
 
 /**
+ * Which research program a strategy belongs to. `LEGACY` covers the 5
+ * strategies backtested in Block 4 / investigated in Block 4.5; every
+ * family added from Block 5 onward gets its own tag. Purely a
+ * classification label — never read by the engine to change behavior.
+ */
+export type StrategyFamily =
+  | "LEGACY"
+  | "MOMENTUM_TREND"
+  | "PULLBACK_TREND"
+  | "VOLATILITY_BREAKOUT"
+  | "GAP_OVERNIGHT"
+  | "INTRADAY_SEASONALITY"
+  | "RELATIVE_STRENGTH"
+  | "PAIRS_RELATIVE_VALUE"
+  | "VOLATILITY_REGIME"
+  | "MULTI_SIGNAL";
+
+/**
+ * Lifecycle status for a strategy in the Strategy Discovery & Validation
+ * Engine (Block 5). `HISTORICAL_REJECTED` = formally taken through a deep
+ * validation funnel and rejected (documented evidence exists —
+ * `invalidationConditions`); `HISTORICAL_UNVALIDATED` = negative in an
+ * earlier block but never taken through the full funnel (weaker evidence,
+ * not equated with a formal rejection). The rest mirror the Block 5
+ * classification funnel's own labels.
+ */
+export type StrategyLifecycleStatus =
+  | "ACTIVE_RESEARCH"
+  | "HISTORICAL_UNVALIDATED"
+  | "HISTORICAL_REJECTED"
+  | "REJECTED"
+  | "RESEARCH"
+  | "CANDIDATE"
+  | "VALIDATED";
+
+/**
  * Common interface every strategy implements. Adding a new strategy means
  * writing a new class/module that satisfies this interface and registering
  * it with the Strategy Manager — it never requires modifying existing
@@ -97,6 +133,20 @@ export interface Strategy {
   /** Regimes under which this strategy is considered appropriate to run. */
   readonly compatibleRegimes: readonly MarketRegime[];
   readonly defaultParameters: StrategyParameters;
+
+  /**
+   * Research metadata (Block 5, Strategy Discovery & Validation Engine).
+   * Optional and additive so pre-Block-5 synthetic test fixtures that
+   * build a minimal `Strategy` object still type-check — never read by
+   * the engine, purely for classification/reporting. Every REAL strategy
+   * (legacy or new) should populate these.
+   */
+  readonly family?: StrategyFamily;
+  /** One or two sentences: the economic/behavioral reason this edge might exist — not "parameter X beat parameter Y". */
+  readonly hypothesis?: string;
+  readonly status?: StrategyLifecycleStatus;
+  /** Concrete, falsifiable conditions that would (or did) invalidate this hypothesis — e.g. "break-even cost below 1bps at realistic execution cost". */
+  readonly invalidationConditions?: readonly string[];
 
   generateSignal(input: StrategyEvaluationInput): StrategySignal;
 }

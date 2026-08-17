@@ -186,4 +186,15 @@ export const trendFollowingStrategy: Strategy = {
   compatibleRegimes: ["STRONG_UPTREND", "UPTREND", "STRONG_DOWNTREND", "DOWNTREND"],
   defaultParameters: TREND_FOLLOWING_DEFAULT_PARAMETERS,
   generateSignal,
+  // Block 5 lifecycle marking — see docs/BLOCK4_BACKTESTING_REPORT.md.
+  // Kept registered (never deleted) for audit; not part of any Block 5
+  // research budget.
+  family: "LEGACY",
+  hypothesis:
+    "An EMA20/50/200-aligned, ADX-confirmed, volume-backed trend tends to continue in the same direction.",
+  status: "HISTORICAL_UNVALIDATED",
+  invalidationConditions: [
+    "Negative net expectancy at realistic execution cost over the 2-year real SPY backtest (Block 4).",
+    "Never taken through Block 4.5's deeper cost-sensitivity/OOS/walk-forward funnel — this status reflects that gap, not an equivalent rejection to Mean Reversion/ORB.",
+  ],
 };
