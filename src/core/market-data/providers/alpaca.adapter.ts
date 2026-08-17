@@ -44,6 +44,17 @@ export interface AlpacaCredentials {
   secretKey: string;
   /** "sip" (full consolidated tape, default) or "iex" (free real-time-only feed). See the module doc comment above for why `sip` is the default. */
   feed?: "sip" | "iex";
+  /**
+   * Corporate-action price adjustment for historical bars — Alpaca's own
+   * `adjustment` query param (https://docs.alpaca.markets/reference/stockbars).
+   * Left `undefined` by default (Alpaca's own default applies: `raw`,
+   * unadjusted for splits/dividends) so every caller from Block 1-5 keeps
+   * byte-identical behavior. Block 6 (`RS3M_CANDIDATE_V1.priceAdjustment`)
+   * is the first caller to set this explicitly, to `"all"` — total-return
+   * momentum ranking needs dividend-adjusted prices, which `raw` silently
+   * omits.
+   */
+  adjustment?: "raw" | "split" | "dividend" | "all";
 }
 
 interface AlpacaBar {
@@ -198,6 +209,7 @@ export function createAlpacaMarketDataProvider(
             end: request.to,
             limit: request.limit ? String(request.limit) : "10000",
             feed,
+            adjustment: credentials.adjustment,
             page_token: pageToken,
           },
           credentials,

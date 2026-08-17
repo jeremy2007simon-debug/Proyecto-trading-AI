@@ -93,6 +93,26 @@ describe("createAlpacaMarketDataProvider", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4); // MAX_RETRIES (3) + initial attempt
   });
 
+  it("omits the adjustment param when credentials.adjustment is unset (preserves Alpaca's own raw default for all pre-Block-6 callers)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ bars: [], symbol: "SPY", next_page_token: null }));
+
+    const provider = createAlpacaMarketDataProvider(credentials);
+    await provider.getHistoricalCandles({ market: "SP500", timeframe: "1d", from: "2024-01-01T00:00:00Z", to: "2024-01-02T00:00:00Z" });
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.searchParams.has("adjustment")).toBe(false);
+  });
+
+  it("passes adjustment through to the Alpaca bars request when explicitly set", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ bars: [], symbol: "SPY", next_page_token: null }));
+
+    const provider = createAlpacaMarketDataProvider({ ...credentials, adjustment: "all" });
+    await provider.getHistoricalCandles({ market: "SP500", timeframe: "1d", from: "2024-01-01T00:00:00Z", to: "2024-01-02T00:00:00Z" });
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.searchParams.get("adjustment")).toBe("all");
+  });
+
   it("sends the Alpaca auth headers on every request", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ symbol: "SPY", trade: { t: "2024-06-17T13:30:00Z", p: 542.1 } }),

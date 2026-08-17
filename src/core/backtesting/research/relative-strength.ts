@@ -60,13 +60,14 @@ export interface RelativeStrengthRunResult {
   monthsTraded: number;
 }
 
-function monthKey(iso: string): string {
+/** Exported additively (Block 6) so `benchmarks.ts` and other monthly-series consumers share the SAME month-bucketing convention instead of re-deriving it. */
+export function monthKey(iso: string): string {
   const d = new Date(iso);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Keeps the LAST candle seen for each calendar month — `candles` must already be chronologically sorted. */
-function buildMonthlyCloses(candles: readonly Candle[]): Map<string, number> {
+/** Keeps the LAST candle seen for each calendar month — `candles` must already be chronologically sorted. Exported additively (Block 6) — see `monthKey`. */
+export function buildMonthlyCloses(candles: readonly Candle[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const candle of candles) map.set(monthKey(candle.timestamp), candle.close);
   return map;
