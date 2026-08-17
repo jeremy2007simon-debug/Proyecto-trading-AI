@@ -26,8 +26,8 @@ export function resolveAlpacaCredentials(): { keyId: string; secretKey: string; 
   return { keyId, secretKey, feed };
 }
 
-async function fetchOne(provider: MarketDataProvider, market: Market, from: string): Promise<Candle[] | undefined> {
-  const result = await provider.getHistoricalCandles({ market, timeframe: "1d", from });
+async function fetchOne(provider: MarketDataProvider, market: Market, from: string, to: string | undefined): Promise<Candle[] | undefined> {
+  const result = await provider.getHistoricalCandles({ market, timeframe: "1d", from, to });
   if (!result.ok) {
     console.error(`  [fetch failed] ${market}/1d: ${result.error.code} — ${result.error.message}`);
     return undefined;
@@ -35,10 +35,25 @@ async function fetchOne(provider: MarketDataProvider, market: Market, from: stri
   return result.value.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }
 
-/** Fetches daily candles for the full RS3M universe under a given price adjustment. Returns `undefined` (never a partial universe) if any asset fails to fetch — a rotation strategy needs all 4 assets present for a fair ranking. */
+/**
+ * Fetches daily candles for the full RS3M universe under a given price
+ * adjustment. Returns `undefined` (never a partial universe) if any asset
+ * fails to fetch — a rotation strategy needs all 4 assets present for a
+ * fair ranking.
+ *
+ * `to` (optional, additive — Block 6's live scheduler path) caps the fetch
+ * at an exact instant, so the RETURNED data's latest month bucket is
+ * guaranteed to be a genuinely COMPLETE month whenever `to` is set to that
+ * month's last-trading-day close — this is what lets
+ * `computeCurrentRs3mSignal`'s "latest month present = the decision month"
+ * assumption hold even if the scheduler runs a few days late (see
+ * `scripts/block6/paper/run-rebalance.ts`). Omit `to` for the historical
+ * audit/analysis scripts, which want everything through "now".
+ */
 export async function fetchRs3mUniverse(
   adjustment: AlpacaCredentials["adjustment"],
   from: string = RS3M_LONG_HISTORY_FROM,
+  to?: string,
 ): Promise<Map<Market, Candle[]> | undefined> {
   const credentials = resolveAlpacaCredentials();
   if (!credentials) {
@@ -49,7 +64,7 @@ export async function fetchRs3mUniverse(
   const provider = createAlpacaMarketDataProvider({ ...credentials, adjustment });
   const byMarket = new Map<Market, Candle[]>();
   for (const market of RS3M_UNIVERSE) {
-    const candles = await fetchOne(provider, market, from);
+    const candles = await fetchOne(provider, market, from, to);
     if (!candles || candles.length === 0) {
       console.error(`[fetch-candidate-assets] Missing data for ${market} (adjustment=${adjustment ?? "raw/unset"}) — aborting.`);
       return undefined;
