@@ -1,0 +1,56 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# real-data backtest experiment output (scripts/run-backtest-experiment.ts) —
+# large, machine-generated, and derived from a point-in-time Alpaca fetch;
+# the final report built from it is what gets committed, not this raw JSON.
+/.backtest-results/
+
+# Block 4.5 strategy research raw output (scripts/run-strategy-research.ts,
+# audit-cost-model.ts, run-block45-deep-validation.ts) — same rationale.
+/.block4-5-results/
+
+# Block 5 Strategy Discovery & Validation Engine raw output
+# (scripts/research/**) — large, machine-generated research artifacts;
+# docs/BLOCK5_STRATEGY_DISCOVERY_REPORT.md (built from it) is what gets committed.
+/results/
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts

@@ -1,0 +1,109 @@
+import type { Candle } from "@/core/market-data/types";
+import type { IndicatorSnapshot } from "@/core/indicators/types";
+import type { ISOTimestamp, Market, Timeframe } from "@/core/shared/types";
+
+/**
+ * Market regime taxonomy. Classification MUST be produced by deterministic,
+ * reproducible quantitative rules (moving-average slope, ATR, realized
+ * volatility, VWAP distance, ADX, swing structure, volume, range
+ * expansion/contraction, momentum) — never by a generative model. See
+ * `docs/ARCHITECTURE.md` for the full rationale.
+ */
+export type MarketRegime =
+  | "STRONG_UPTREND"
+  | "UPTREND"
+  | "STRONG_DOWNTREND"
+  | "DOWNTREND"
+  | "RANGE"
+  | "BREAKOUT"
+  | "HIGH_VOLATILITY"
+  | "LOW_VOLATILITY"
+  | "UNKNOWN";
+
+/**
+ * The quantitative inputs a regime detector is allowed to use. Every field
+ * here must be traceable back to raw candles + indicators — nothing here
+ * may come from a subjective or generative source.
+ */
+export interface RegimeDetectionInput {
+  market: Market;
+  timeframe: Timeframe;
+  candles: readonly Candle[];
+  indicators: IndicatorSnapshot;
+}
+
+/** One rule that contributed to (or against) the final classification. */
+export interface RegimeRuleEvaluation {
+  rule: string;
+  passed: boolean;
+  value: number | string | boolean;
+  weight: number;
+}
+
+/**
+ * Internal quantitative sub-scores computed per bar before
+ * classification. Each is a reproducible function of candles +
+ * indicators (see `RuleBasedRegimeDetector`) — none of these are
+ * probabilities and none should ever be presented to a user as one.
+ * `trendScore` and `momentumScore` are signed (-100..100, sign = direction);
+ * `volatilityScore`, `breakoutScore`, and `rangeScore` are unsigned (0..100).
+ */
+export interface RegimeScores {
+  trendScore: number;
+  volatilityScore: number;
+  breakoutScore: number;
+  rangeScore: number;
+  momentumScore: number;
+}
+
+export interface RegimeDetectionResult {
+  market: Market;
+  timeframe: Timeframe;
+  timestamp: ISOTimestamp;
+  regime: MarketRegime;
+  /** Regime classified immediately before this one, if known. */
+  previousRegime?: MarketRegime;
+  /** 0-100 internal confidence derived from rule agreement, not a probability. */
+  confidenceScore: number;
+  rulesEvaluated: RegimeRuleEvaluation[];
+  /** Raw indicator readings used, persisted for auditability. */
+  indicatorsSnapshot: IndicatorSnapshot;
+  /** Sub-scores that drove the classification, when available (absent for UNKNOWN with insufficient history). */
+  scores?: RegimeScores;
+}
+
+/**
+ * Contract for any regime classification implementation. The initial
+ * implementation is rule-based (see `RuleBasedRegimeDetector`); this
+ * interface is what the rest of the system depends on, so the detector
+ * can be swapped or extended without touching Strategy Manager, Consensus
+ * Engine, or Risk Engine.
+ */
+export interface MarketRegimeDetector {
+  readonly id: string;
+
+  detect(input: RegimeDetectionInput): RegimeDetectionResult;
+
+  /**
+   * Same computation as `detect`, but returns the confirmed regime AT
+   * EVERY bar (from warmup onward) in a single linear pass, instead of
+   * only the last one. `detect(input).regime` always equals
+   * `detectSeries(input).at(-1)!.regime` — this is purely a performance
+   * escape hatch for callers (the backtesting engine) that need a
+   * per-bar regime series and would otherwise have to call `detect` once
+   * per bar on a growing prefix, which is O(n^2).
+   */
+  detectSeries(input: RegimeDetectionInput): RegimeDetectionResult[];
+}
+
+/**
+ * Persisted row shape mirroring the `market_regimes` table — used when
+ * reading regime history back for analytics (duration, strategies used,
+ * performance obtained, regime changes).
+ */
+export interface MarketRegimeRecord extends RegimeDetectionResult {
+  id: string;
+  /** Populated once the next regime change is detected. */
+  endedAt?: ISOTimestamp;
+  durationSeconds?: number;
+}
