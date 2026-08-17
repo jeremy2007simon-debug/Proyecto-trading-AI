@@ -136,4 +136,65 @@ describe("runRelativeStrengthBacktest", () => {
     expect(result.monthsTraded).toBeGreaterThan(0);
     expect(result.totalReturnPct).toBeCloseTo((result.strategyEquityCurve.at(-1)!.equity - 1) * 100, 6);
   });
+
+  describe("no-look-ahead (Block 6, Fase 2 dedicated audit test)", () => {
+    /**
+     * Direct structural proof, not just an indirect "picks the right
+     * winner" check: every EARLY decision (month T) must produce an
+     * IDENTICAL ranking/selection/period-return whether or not any months
+     * AFTER T exist in the input series at all. If the engine ever let a
+     * later month leak into an earlier ranking, truncating the series
+     * would change an earlier period's result — it must not.
+     */
+    it("truncating all months after decision month T does not change period T's selection or return", () => {
+      const fullAssets = [
+        asset("A", [100, 105, 110, 115, 300, 50, 400]), // wild future swings after month 3
+        asset("B", [100, 100, 100, 100, 5, 900, 1]),
+        asset("C", [100, 102, 101, 103, 999, 999, 999]),
+        asset("D", [100, 100, 100, 100, 100, 100, 100]),
+      ];
+      const fullResult = runRelativeStrengthBacktest(fullAssets, { lookbackMonths: 3, benchmarkMarket: "D" });
+
+      // Truncate every asset to only the first 5 months (index 0-4) — this
+      // removes months 5 and 6, which is exactly the data a look-ahead bug
+      // would have (incorrectly) used to influence the FIRST decision
+      // (index 3, hold month 4).
+      const truncatedAssets = fullAssets.map((a) => ({ market: a.market, candles: a.candles.slice(0, 5) }));
+      const truncatedResult = runRelativeStrengthBacktest(truncatedAssets, { lookbackMonths: 3, benchmarkMarket: "D" });
+
+      expect(truncatedResult.periods).toHaveLength(1);
+      expect(fullResult.periods[0]).toEqual(truncatedResult.periods[0]);
+    });
+
+    it("the trailing-return ranking at decision month T uses ONLY candles with a timestamp <= T's close, never a later one", () => {
+      // A wins the trailing-return ranking through month index 3 (April).
+      // B has an enormous spike strictly AFTER that decision month's close
+      // (month index 4, May) — a look-ahead bug (peeking at month 4 while
+      // ranking at month 3) would pick B; the correct engine must pick A,
+      // and the decision month itself must be April, never May.
+      // Append B's post-decision spike strictly after the decision month's close.
+      const bCandlesWithFutureSpike = [
+        ...asset("B", [100, 100, 100, 100]).candles,
+        {
+          market: "SP500" as const,
+          timeframe: "1d" as const,
+          symbol: "TEST",
+          provider: "test",
+          timestamp: new Date(Date.UTC(2024, 4, 28, 20, 0, 0)).toISOString(),
+          open: 900,
+          high: 900,
+          low: 900,
+          close: 900,
+          volume: 1_000_000,
+        },
+      ];
+      const assets = [asset("A", [100, 105, 110, 120]), { market: "B", candles: bCandlesWithFutureSpike }];
+
+      const result = runRelativeStrengthBacktest(assets, { lookbackMonths: 3, benchmarkMarket: "A" });
+
+      expect(result.periods).toHaveLength(1);
+      expect(result.periods[0].decisionMonth).toBe("2024-04");
+      expect(result.periods[0].selectedMarket).toBe("A");
+    });
+  });
 });
