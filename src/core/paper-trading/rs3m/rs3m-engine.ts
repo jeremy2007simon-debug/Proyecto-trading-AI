@@ -1,7 +1,9 @@
 import type { RelativeStrengthAssetInput } from "@/core/backtesting/research/relative-strength";
-import type { AlpacaOrder, AlpacaPaperTradingClient } from "@/core/execution/alpaca-paper-client";
+import type { AlpacaAccount, AlpacaOrder, AlpacaPaperTradingClient, AlpacaPosition } from "@/core/execution/alpaca-paper-client";
 import { getInstrumentConfig } from "@/core/market-data/instruments";
-import { RS3M_CANDIDATE_V1 } from "@/core/paper-trading/rs3m/candidate";
+import { computeCandidateHash, RS3M_CANDIDATE_V1 } from "@/core/paper-trading/rs3m/candidate";
+import { validateAssetCandles } from "@/core/paper-trading/rs3m/data-validation";
+import { buildClientOrderId, isOrderStatusTerminal, reconcileExistingOrdersForMonth } from "@/core/paper-trading/rs3m/order-idempotency";
 import { planRebalance, type RebalancePlan } from "@/core/paper-trading/rs3m/rebalance-planner";
 import { runAllRs3mSafetyGuards, type SafetyGuardResult } from "@/core/paper-trading/rs3m/safety-guards";
 import { computeCurrentRs3mSignal, type Rs3mSignal } from "@/core/paper-trading/rs3m/signal-calculator";
@@ -21,21 +23,35 @@ import type { Market } from "@/core/shared/types";
  * "core has zero direct I/O" convention used everywhere else in this
  * codebase.
  *
- * `dryRun()` NEVER calls `submitNotionalOrder` — only the two read-only
- * calls (`getAccount`, `getPositions`) already used by every other
- * read-side script. `execute()` is the only path that submits real (paper)
- * orders, and only proceeds when `dryRun()`'s own guard result would have
- * passed — "si cualquier safeguard falla: NO OPERAR."
+ * `dryRun()` NEVER calls `submitNotionalOrder` — only read-only calls
+ * (`getAccount`, `getPositions`, `listOrders`) already used elsewhere.
+ * `execute()` is the only path that submits real (paper) orders, and only
+ * proceeds when `dryRun()`'s own guard result would have passed — "si
+ * cualquier safeguard falla: NO OPERAR." `execute()` additionally
+ * reconciles against the broker's OWN order history (`order-idempotency.ts`)
+ * before submitting anything, so a crash/retry between a successful
+ * submission and the local idempotency-marker write can never duplicate
+ * an order — see that module's doc comment.
  */
+
+/** Re-exported for backward compatibility — callers/tests that import this from the engine keep working; `order-idempotency.ts` is the single source of truth for the format. */
+export { buildClientOrderId };
 
 export interface Rs3mEngineDependencies {
   tradingClient: AlpacaPaperTradingClient;
   /** Reads the idempotency marker for `decisionMonth` — see `safety-guards.ts`'s `assertNotAlreadyExecutedThisMonth`. */
   hasExecutedThisMonth(decisionMonth: string): Promise<boolean>;
   nowIso(): string;
+  /** Injectable sleep for post-submission fill polling — defaults to a real timer. Tests pass a fake to stay instant. */
+  sleep?: (ms: number) => Promise<void>;
+  /** Max `getOrder` polls per freshly-submitted order while waiting for a terminal fill status. Default 5. */
+  pollMaxAttempts?: number;
+  /** Delay between polls, in ms. Default 1000. */
+  pollDelayMs?: number;
 }
 
 export type Rs3mPlanBlockedReason =
+  | "MALFORMED_DATA"
   | "INSUFFICIENT_DATA"
   | "ACCOUNT_UNAVAILABLE"
   | "POSITIONS_UNAVAILABLE"
@@ -48,6 +64,9 @@ export interface Rs3mPlanResult {
   guardResult: SafetyGuardResult;
   wouldExecute: boolean;
   blockedReason?: Rs3mPlanBlockedReason;
+  /** Account/positions snapshot as of THIS plan computation — `undefined` only when the corresponding read call itself failed (see `blockedReason`). Captured here (additive to the plan's own return shape) so callers building a forward-evidence record don't need a second, potentially-inconsistent read. */
+  account?: AlpacaAccount;
+  positionsBefore?: AlpacaPosition[];
 }
 
 export interface Rs3mExecuteResult {
@@ -55,11 +74,8 @@ export interface Rs3mExecuteResult {
   ordersSubmitted: AlpacaOrder[];
   skipped: boolean;
   skipReason?: string;
-}
-
-/** Deterministic, human-auditable idempotency key: one buy/sell per (decision month, symbol) pair can ever be submitted. */
-export function buildClientOrderId(decisionMonth: string, symbol: string, side: "buy" | "sell"): string {
-  return `rs3m-${decisionMonth}-${symbol.toLowerCase()}-${side}`;
+  /** True if at least one submitted order (this run or a prior partial run) had not reached a terminal fill status by the end of polling — a legitimate PARTIAL_FILL/still-open condition, not a failure. */
+  anyOrderStillInFlight?: boolean;
 }
 
 function tickerFor(market: Market): string {
@@ -69,6 +85,17 @@ function tickerFor(market: Market): string {
 
 export function createRs3mEngine(deps: Rs3mEngineDependencies) {
   async function computePlan(assets: readonly RelativeStrengthAssetInput[]): Promise<Rs3mPlanResult> {
+    const malformed = validateAssetCandles(assets);
+    if (malformed.length > 0) {
+      return {
+        signal: undefined,
+        plan: undefined,
+        guardResult: { passed: false, violations: malformed.map((v) => ({ guard: "MALFORMED_DATA", reason: `${v.market} @ ${v.timestamp}: ${v.reason}` })) },
+        wouldExecute: false,
+        blockedReason: "MALFORMED_DATA",
+      };
+    }
+
     const signal = computeCurrentRs3mSignal(assets, RS3M_CANDIDATE_V1.lookbackMonths);
     if (!signal) {
       return {
@@ -111,6 +138,8 @@ export function createRs3mEngine(deps: Rs3mEngineDependencies) {
       alreadyExecutedThisMonth: alreadyExecuted,
       signalDataCutoffTimestamp: signal.dataCutoffTimestamp,
       nowIso: deps.nowIso(),
+      candidateId: RS3M_CANDIDATE_V1.candidateId,
+      candidateHash: computeCandidateHash(RS3M_CANDIDATE_V1),
     });
 
     const wouldExecute = guardResult.passed && plan.isRebalanceNeeded;
@@ -120,6 +149,8 @@ export function createRs3mEngine(deps: Rs3mEngineDependencies) {
       guardResult,
       wouldExecute,
       blockedReason: wouldExecute ? undefined : !guardResult.passed ? "SAFETY_GUARD_FAILED" : "NO_REBALANCE_NEEDED",
+      account: accountResult.value,
+      positionsBefore: positionsResult.value,
     };
   }
 
@@ -128,15 +159,62 @@ export function createRs3mEngine(deps: Rs3mEngineDependencies) {
     return computePlan(assets);
   }
 
-  /** Submits real (paper) orders — ONLY when `dryRun`'s own plan would execute. Stops at the first failed order and reports it rather than guessing at partial state. */
+  /** Polls each order's status via `getOrder` until it reaches a terminal fill status (`isOrderStatusTerminal`) or the poll budget is exhausted — surfaces partial/still-open fills honestly rather than assuming an "accepted" response means "filled." */
+  async function pollOrdersToTerminal(orders: readonly AlpacaOrder[]): Promise<{ orders: AlpacaOrder[]; anyStillInFlight: boolean }> {
+    const maxAttempts = deps.pollMaxAttempts ?? 5;
+    const delayMs = deps.pollDelayMs ?? 1000;
+    const sleepFn = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+
+    const resolved: AlpacaOrder[] = [];
+    let anyStillInFlight = false;
+
+    for (const order of orders) {
+      let current = order;
+      for (let attempt = 0; !isOrderStatusTerminal(current.status) && attempt < maxAttempts; attempt++) {
+        await sleepFn(delayMs);
+        const polled = await deps.tradingClient.getOrder(current.orderId);
+        if (!polled.ok) break;
+        current = polled.value;
+      }
+      if (!isOrderStatusTerminal(current.status)) anyStillInFlight = true;
+      resolved.push(current);
+    }
+
+    return { orders: resolved, anyStillInFlight };
+  }
+
+  /**
+   * Submits real (paper) orders — ONLY when `dryRun`'s own plan would
+   * execute. Before submitting anything, reconciles this month's planned
+   * orders against the broker's ACTUAL order history by deterministic
+   * `clientOrderId` (`order-idempotency.ts`): orders that already exist
+   * there are never resubmitted (restart/retry safety), and a prior
+   * terminally-failed attempt fails the whole run closed rather than
+   * silently retrying under a new ID. Stops at the first NEW submission
+   * failure and reports it rather than guessing at partial state. After
+   * submission, polls each order to a terminal fill status before
+   * returning.
+   */
   async function execute(assets: readonly RelativeStrengthAssetInput[]): Promise<Rs3mExecuteResult> {
     const planResult = await computePlan(assets);
     if (!planResult.wouldExecute || !planResult.plan || !planResult.signal) {
       return { planResult, ordersSubmitted: [], skipped: true, skipReason: planResult.blockedReason ?? "NOT_EXECUTABLE" };
     }
 
-    const submitted: AlpacaOrder[] = [];
-    for (const order of planResult.plan.orders) {
+    const existingOrdersResult = await deps.tradingClient.listOrders({ status: "all" });
+    if (!existingOrdersResult.ok) {
+      return { planResult, ordersSubmitted: [], skipped: true, skipReason: `Could not verify existing broker orders before submitting (fail-closed on idempotency check): ${existingOrdersResult.error.message}` };
+    }
+
+    const reconciliation = reconcileExistingOrdersForMonth(existingOrdersResult.value, planResult.signal.decisionMonth, planResult.plan.orders);
+
+    if (reconciliation.failedPriorAttempts.length > 0) {
+      const details = reconciliation.failedPriorAttempts.map((o) => `${o.symbol} ${o.side} (${o.status})`).join(", ");
+      return { planResult, ordersSubmitted: [], skipped: true, skipReason: `A prior attempt this month failed terminally for: ${details}. Refusing to auto-retry under a new order ID — needs human review.` };
+    }
+
+    const submitted: AlpacaOrder[] = [...reconciliation.alreadySubmitted];
+    for (const order of reconciliation.toSubmit) {
       const clientOrderId = buildClientOrderId(planResult.signal.decisionMonth, order.symbol, order.side);
       const result = await deps.tradingClient.submitNotionalOrder({ symbol: order.symbol, side: order.side, notionalUsd: order.notionalUsd, clientOrderId });
       if (!result.ok) {
@@ -145,7 +223,9 @@ export function createRs3mEngine(deps: Rs3mEngineDependencies) {
       submitted.push(result.value);
     }
 
-    return { planResult, ordersSubmitted: submitted, skipped: false };
+    const { orders: reconciledOrders, anyStillInFlight } = await pollOrdersToTerminal(submitted);
+
+    return { planResult, ordersSubmitted: reconciledOrders, skipped: false, anyOrderStillInFlight: anyStillInFlight };
   }
 
   return { dryRun, execute };

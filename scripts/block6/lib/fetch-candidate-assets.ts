@@ -18,11 +18,11 @@ export const RS3M_LONG_HISTORY_FROM = "2016-01-01T00:00:00.000Z";
 export const RS3M_UNIVERSE: Market[] = ["SP500", "NASDAQ100", "RUSSELL2000", "DOWJONES"];
 export const RS3M_BENCHMARK: Market = "SP500";
 
-export function resolveAlpacaCredentials(): { keyId: string; secretKey: string; feed?: "sip" | "iex" } | undefined {
-  const keyId = process.env.ALPACA_API_KEY_ID;
-  const secretKey = process.env.ALPACA_API_SECRET_KEY;
+export function resolveAlpacaCredentials(env: Partial<NodeJS.ProcessEnv> = process.env): { keyId: string; secretKey: string; feed?: "sip" | "iex" } | undefined {
+  const keyId = env.ALPACA_API_KEY_ID;
+  const secretKey = env.ALPACA_API_SECRET_KEY;
   if (!keyId || !secretKey) return undefined;
-  const feed = process.env.ALPACA_FEED === "iex" ? "iex" : process.env.ALPACA_FEED === "sip" ? "sip" : undefined;
+  const feed = env.ALPACA_FEED === "iex" ? "iex" : env.ALPACA_FEED === "sip" ? "sip" : undefined;
   return { keyId, secretKey, feed };
 }
 

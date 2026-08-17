@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { buildClientOrderId, createRs3mEngine, type Rs3mEngineDependencies } from "@/core/paper-trading/rs3m/rs3m-engine";
 import type { AlpacaAccount, AlpacaOrder, AlpacaPaperTradingClient, AlpacaPosition } from "@/core/execution/alpaca-paper-client";
@@ -68,8 +70,12 @@ function makeFakeClient(overrides: Partial<AlpacaPaperTradingClient> = {}): Alpa
     getAccount: vi.fn().mockResolvedValue({ ok: true, value: account() }),
     getPositions: vi.fn().mockResolvedValue({ ok: true, value: [] as AlpacaPosition[] }),
     submitNotionalOrder: vi.fn().mockResolvedValue({ ok: true, value: order() }),
-    getOrder: vi.fn(),
-    listOrders: vi.fn(),
+    // Poll-to-terminal immediately sees a filled order by default — tests that care about
+    // partial-fill/in-flight behavior override this explicitly.
+    getOrder: vi.fn().mockResolvedValue({ ok: true, value: order({ status: "filled", filledAt: "2026-04-29T13:30:05Z", filledAvgPrice: 500, filledQty: 20 }) }),
+    // No pre-existing orders at the broker by default — tests exercising restart/retry
+    // idempotency override this with a fixture order list.
+    listOrders: vi.fn().mockResolvedValue({ ok: true, value: [] }),
     ...overrides,
   };
 }
@@ -83,6 +89,7 @@ function makeDeps(overrides: Partial<Rs3mEngineDependencies> = {}): Rs3mEngineDe
     tradingClient: makeFakeClient(),
     hasExecutedThisMonth: vi.fn().mockResolvedValue(false),
     nowIso: () => "2026-04-29T13:30:00Z",
+    sleep: vi.fn().mockResolvedValue(undefined), // instant in tests — never wait on a real timer
     ...overrides,
   };
 }
@@ -91,6 +98,25 @@ describe("buildClientOrderId", () => {
   it("is deterministic per (month, symbol, side)", () => {
     expect(buildClientOrderId("2026-04", "SPY", "buy")).toBe("rs3m-2026-04-spy-buy");
     expect(buildClientOrderId("2026-04", "SPY", "buy")).toBe(buildClientOrderId("2026-04", "SPY", "buy"));
+  });
+});
+
+describe("rs3m-engine.ts — structural guarantee: dryRun/computePlan never call submitNotionalOrder", () => {
+  it("the ONLY CODE reference to submitNotionalOrder in the entire file is inside execute() — never inside computePlan/dryRun (doc comments mentioning it in prose are excluded)", () => {
+    const rawSource = readFileSync(join(process.cwd(), "src/core/paper-trading/rs3m/rs3m-engine.ts"), "utf8");
+    // Strip block and line comments so doc-comment PROSE mentioning "submitNotionalOrder" doesn't produce a false failure — this test cares about CODE reachability only.
+    const source = rawSource.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+    const executeStart = source.indexOf("async function execute(");
+    expect(executeStart).toBeGreaterThan(-1);
+
+    const beforeExecute = source.slice(0, executeStart);
+    const fromExecuteOnward = source.slice(executeStart);
+
+    // computePlan/dryRun/pollOrdersToTerminal are all defined before execute() in this file — none of them may reference the write endpoint.
+    expect(beforeExecute).not.toContain("submitNotionalOrder");
+    // execute() itself must be the one and only place that calls it.
+    expect(fromExecuteOnward.match(/submitNotionalOrder/g)?.length).toBe(1);
   });
 });
 
@@ -160,6 +186,18 @@ describe("createRs3mEngine — dryRun", () => {
 
     expect(result.blockedReason).toBe("ACCOUNT_UNAVAILABLE");
   });
+
+  it("returns MALFORMED_DATA and refuses to compute a signal when candle data is corrupt (e.g. a NaN close)", async () => {
+    const corruptUniverse: RelativeStrengthAssetInput[] = buildUniverse();
+    corruptUniverse[0].candles[2].close = NaN;
+    const engine = createRs3mEngine(makeDeps());
+
+    const result = await engine.dryRun(corruptUniverse);
+
+    expect(result.signal).toBeUndefined();
+    expect(result.blockedReason).toBe("MALFORMED_DATA");
+    expect(result.guardResult.violations.some((v) => v.guard === "MALFORMED_DATA")).toBe(true);
+  });
 });
 
 describe("createRs3mEngine — execute", () => {
@@ -199,5 +237,82 @@ describe("createRs3mEngine — execute", () => {
     expect(result.skipped).toBe(true);
     expect(result.ordersSubmitted).toEqual([]);
     expect(result.skipReason).toContain("insufficient buying power");
+  });
+
+  it("restart/retry safety: does NOT resubmit an order that already exists at the broker under this month's deterministic client_order_id, even if the local idempotency marker was never written (simulating a crash right after submission)", async () => {
+    const submitMock = vi.fn();
+    const priorOrder = order({ orderId: "order-prior", clientOrderId: "rs3m-2026-04-spy-buy", symbol: "SPY", side: "buy", status: "filled", filledAvgPrice: 500, filledQty: 20 });
+    const client = makeFakeClient({
+      submitNotionalOrder: submitMock,
+      listOrders: vi.fn().mockResolvedValue({ ok: true, value: [priorOrder] }),
+    });
+    // hasExecutedThisMonth is FALSE — the local marker was never written (the simulated crash) —
+    // yet the broker-side reconciliation must still prevent a duplicate submission.
+    const engine = createRs3mEngine(makeDeps({ tradingClient: client, hasExecutedThisMonth: vi.fn().mockResolvedValue(false) }));
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(false);
+    expect(result.ordersSubmitted).toEqual([priorOrder]);
+  });
+
+  it("fails closed (does not submit or auto-retry) when a prior attempt this month terminally failed (rejected/canceled/expired)", async () => {
+    const submitMock = vi.fn();
+    const rejectedPrior = order({ orderId: "order-rejected", clientOrderId: "rs3m-2026-04-spy-buy", symbol: "SPY", side: "buy", status: "rejected" });
+    const client = makeFakeClient({
+      submitNotionalOrder: submitMock,
+      listOrders: vi.fn().mockResolvedValue({ ok: true, value: [rejectedPrior] }),
+    });
+    const engine = createRs3mEngine(makeDeps({ tradingClient: client }));
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(true);
+    expect(result.skipReason).toContain("failed terminally");
+    expect(result.skipReason).toContain("rejected");
+  });
+
+  it("fails closed when the broker-side idempotency check itself (listOrders) fails — never guesses and submits blind", async () => {
+    const submitMock = vi.fn();
+    const client = makeFakeClient({
+      submitNotionalOrder: submitMock,
+      listOrders: vi.fn().mockResolvedValue({ ok: false, error: { code: "PROVIDER_UNAVAILABLE", message: "Alpaca is down" } }),
+    });
+    const engine = createRs3mEngine(makeDeps({ tradingClient: client }));
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(true);
+    expect(result.skipReason).toContain("fail-closed");
+  });
+
+  it("surfaces a still-open order after submission as anyOrderStillInFlight rather than silently treating it as filled (partial-fill handling)", async () => {
+    const submitMock = vi.fn().mockResolvedValue({ ok: true, value: order({ clientOrderId: "rs3m-2026-04-spy-buy", status: "accepted" }) });
+    const getOrderMock = vi.fn().mockResolvedValue({ ok: true, value: order({ status: "partially_filled", filledQty: 5, filledAvgPrice: 500 }) });
+    const client = makeFakeClient({ submitNotionalOrder: submitMock, getOrder: getOrderMock });
+    const engine = createRs3mEngine(makeDeps({ tradingClient: client, pollMaxAttempts: 2, pollDelayMs: 1 }));
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(result.skipped).toBe(false);
+    expect(result.anyOrderStillInFlight).toBe(true);
+    expect(result.ordersSubmitted[0].status).toBe("partially_filled");
+    expect(getOrderMock).toHaveBeenCalled();
+  });
+
+  it("polls until the order reaches a terminal filled status, then stops polling", async () => {
+    const submitMock = vi.fn().mockResolvedValue({ ok: true, value: order({ clientOrderId: "rs3m-2026-04-spy-buy", status: "accepted" }) });
+    const getOrderMock = vi.fn().mockResolvedValue({ ok: true, value: order({ status: "filled", filledQty: 20, filledAvgPrice: 500 }) });
+    const client = makeFakeClient({ submitNotionalOrder: submitMock, getOrder: getOrderMock });
+    const engine = createRs3mEngine(makeDeps({ tradingClient: client }));
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(result.anyOrderStillInFlight).toBe(false);
+    expect(result.ordersSubmitted[0].status).toBe("filled");
+    expect(getOrderMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertCandidateHashNotTampered,
   assertNoLeverage,
   assertNoShortOrder,
   assertNotAlreadyExecutedThisMonth,
@@ -7,6 +8,7 @@ import {
   assertSignalNotStale,
   assertSymbolWhitelisted,
   runAllRs3mSafetyGuards,
+  EXPECTED_RS3M_CANDIDATE_V1_HASH,
   RS3M_ALLOWED_SYMBOLS,
 } from "@/core/paper-trading/rs3m/safety-guards";
 import type { RebalancePlanOrder } from "@/core/paper-trading/rs3m/rebalance-planner";
@@ -93,6 +95,23 @@ describe("assertSignalNotStale", () => {
   });
 });
 
+describe("assertCandidateHashNotTampered", () => {
+  it("passes when the actual hash matches the expected hash", () => {
+    expect(assertCandidateHashNotTampered("RS3M_CANDIDATE_V1", "abc123", "abc123")).toBeUndefined();
+  });
+
+  it("fails when the actual hash does not match — the candidate may have been edited in place", () => {
+    const violation = assertCandidateHashNotTampered("RS3M_CANDIDATE_V1", "deadbeef", "abc123");
+    expect(violation?.guard).toBe("CANDIDATE_HASH_MISMATCH");
+    expect(violation!.reason).toContain("edited in place");
+  });
+
+  it("defaults the expected hash to the pinned RS3M_CANDIDATE_V1 value when not passed explicitly", () => {
+    expect(assertCandidateHashNotTampered("RS3M_CANDIDATE_V1", EXPECTED_RS3M_CANDIDATE_V1_HASH)).toBeUndefined();
+    expect(assertCandidateHashNotTampered("RS3M_CANDIDATE_V1", "tampered")?.guard).toBe("CANDIDATE_HASH_MISMATCH");
+  });
+});
+
 describe("runAllRs3mSafetyGuards", () => {
   const baseParams = {
     orders: [{ symbol: "SPY", side: "buy", notionalUsd: 10000, reason: "x" } satisfies RebalancePlanOrder],
@@ -102,6 +121,8 @@ describe("runAllRs3mSafetyGuards", () => {
     alreadyExecutedThisMonth: false,
     signalDataCutoffTimestamp: "2026-08-03T00:00:00Z",
     nowIso: "2026-08-03T14:00:00Z",
+    candidateId: "RS3M_CANDIDATE_V1",
+    candidateHash: EXPECTED_RS3M_CANDIDATE_V1_HASH,
   };
 
   it("passes when every guard passes", () => {
@@ -129,5 +150,11 @@ describe("runAllRs3mSafetyGuards", () => {
     expect(result.passed).toBe(false);
     expect(result.violations).toHaveLength(1);
     expect(result.violations[0].guard).toBe("IDEMPOTENCY");
+  });
+
+  it("blocks the whole run if the candidate hash doesn't match the pinned expected value (tamper detection)", () => {
+    const result = runAllRs3mSafetyGuards({ ...baseParams, candidateHash: "tampered-hash" });
+    expect(result.passed).toBe(false);
+    expect(result.violations.some((v) => v.guard === "CANDIDATE_HASH_MISMATCH")).toBe(true);
   });
 });

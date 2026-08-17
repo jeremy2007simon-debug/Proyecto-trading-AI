@@ -22,6 +22,17 @@ export const RS3M_ALLOWED_SYMBOLS = ["SPY", "QQQ", "IWM", "DIA"] as const;
 export type Rs3mAllowedSymbol = (typeof RS3M_ALLOWED_SYMBOLS)[number];
 
 const EXPECTED_PAPER_BASE_URL = "https://paper-api.alpaca.markets/v2";
+
+/**
+ * Pinned INDEPENDENTLY of `candidate.ts` (never imported from there) —
+ * deliberately a second, separately-declared literal so this guard can
+ * catch the exact failure mode it exists for: `RS3M_CANDIDATE_V1`'s
+ * definition being edited in place (against the freeze rule) without this
+ * file also being updated. Mirrors `tests/core/paper-trading/rs3m/candidate.test.ts`'s
+ * pinned-hash test, but enforced at RUNTIME, on every real (paper) order
+ * submission, not just in CI.
+ */
+export const EXPECTED_RS3M_CANDIDATE_V1_HASH = "1c28b57c";
 /** Small epsilon (dollars) to absorb float rounding — RS3M is single-winner 100%, never more than that, ever. */
 const NO_LEVERAGE_EPSILON_USD = 0.5;
 
@@ -40,6 +51,14 @@ export function assertPaperOnly(): SafetyGuardViolation | undefined {
   const baseUrl = getAlpacaPaperTradingBaseUrl();
   if (baseUrl !== EXPECTED_PAPER_BASE_URL) {
     return { guard: "PAPER_ONLY", reason: `Trading client base URL is "${baseUrl}", expected exactly "${EXPECTED_PAPER_BASE_URL}". Refusing to proceed.` };
+  }
+  return undefined;
+}
+
+/** Refuses to act if the candidate actually loaded doesn't hash to the pinned, independently-declared expected value — a tripwire against an in-place edit of the frozen `RS3M_CANDIDATE_V1` definition (see `EXPECTED_RS3M_CANDIDATE_V1_HASH`'s doc comment). */
+export function assertCandidateHashNotTampered(candidateId: string, actualHash: string, expectedHash: string = EXPECTED_RS3M_CANDIDATE_V1_HASH): SafetyGuardViolation | undefined {
+  if (actualHash !== expectedHash) {
+    return { guard: "CANDIDATE_HASH_MISMATCH", reason: `Candidate "${candidateId}" hashes to "${actualHash}", expected the pinned "${expectedHash}" — the frozen definition may have been edited in place. Refusing to trade.` };
   }
   return undefined;
 }
@@ -97,6 +116,10 @@ export interface RunAllGuardsParams {
   signalDataCutoffTimestamp: string;
   nowIso: string;
   maxStaleDays?: number;
+  /** The candidate's own identity + computed hash — see `assertCandidateHashNotTampered`. */
+  candidateId: string;
+  candidateHash: string;
+  expectedCandidateHash?: string;
 }
 
 /** Runs every guard and collects ALL violations (never short-circuits) — "si cualquier safeguard falla: NO OPERAR." */
@@ -105,6 +128,9 @@ export function runAllRs3mSafetyGuards(params: RunAllGuardsParams): SafetyGuardR
 
   const paperOnly = assertPaperOnly();
   if (paperOnly) violations.push(paperOnly);
+
+  const candidateHash = assertCandidateHashNotTampered(params.candidateId, params.candidateHash, params.expectedCandidateHash);
+  if (candidateHash) violations.push(candidateHash);
 
   const idempotency = assertNotAlreadyExecutedThisMonth(params.decisionMonth, params.alreadyExecutedThisMonth);
   if (idempotency) violations.push(idempotency);
