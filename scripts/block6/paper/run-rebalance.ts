@@ -8,8 +8,8 @@
  * to know about holidays. On any day that isn't the correct execution
  * day, this is a fast, silent (but LOGGED) no-op.
  *
- * ALGORITHM (see docs/BLOCK6_CANDIDATE_VERIFICATION_REPORT.md for the
- * full write-up):
+ * ALGORITHM (see docs/BLOCK6_CANDIDATE_VERIFICATION_REPORT.md and
+ * docs/RS3M_FORWARD_PAPER_TRACKING.md for the full write-up):
  *   1. If today (America/New_York) isn't an NYSE trading day -> no-op.
  *   2. The "target month" is always the PREVIOUS calendar month relative
  *      to today — the only month guaranteed to have fully closed. This
@@ -26,19 +26,28 @@
  *   6. Run the engine in DRY_RUN (default) or PAPER_TRADING mode per env.
  *      `rs3m-engine.ts#execute()` internally reconciles against the
  *      broker's own order history before submitting anything (restart/
- *      retry safety — see `order-idempotency.ts`) and polls submitted
- *      orders to a terminal fill status before returning.
- *   7. Every attempt (executed, blocked, or skipped) is appended to the
+ *      retry safety — see `order-idempotency.ts`), re-checks EVERY safety
+ *      guard fresh (including manual approval — see below), and polls
+ *      submitted orders to a terminal fill status before returning.
+ *   7. MANUAL APPROVAL GATE (default ON — `RS3M_REQUIRE_APPROVAL`): a
+ *      decision month whose plan passes every OTHER guard is blocked with
+ *      `AWAITING_APPROVAL` until a human runs `approve-rebalance.ts`. The
+ *      first time a month reaches this state, a detailed notification
+ *      fires ONCE (`approval-store.ts#hasAwaitingApprovalMarker` prevents
+ *      daily repeats) — see `docs/RS3M_FORWARD_PAPER_TRACKING.md`.
+ *   8. Every attempt (executed, blocked, or skipped) is appended to the
  *      forward-evidence ledger (`forward-evidence-store.ts`) — separate
- *      from the backtest/OOS datasets — and fanned out through the
- *      notification dispatcher (`notifications/dispatcher.ts`).
+ *      from the backtest/OOS datasets — and relevant ones are fanned out
+ *      through the notification dispatcher
+ *      (`notifications/dispatcher.ts`) per `notification-policy.ts`
+ *      (routine STALE_SIGNAL blocks do NOT notify daily).
  *
  * Run with:
  *   NODE_OPTIONS="--conditions=react-server" npx tsx scripts/block6/paper/run-rebalance.ts
  *
- * Respects DRY_RUN (default "true") and PAPER_TRADING (default "false")
- * from .env.local / the environment — see .env.example for the exact
- * gating rules.
+ * Respects DRY_RUN (default "true"), PAPER_TRADING (default "false"), and
+ * RS3M_REQUIRE_APPROVAL (default "true") from .env.local / the
+ * environment — see .env.example for the exact gating rules.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -48,6 +57,7 @@ setupSandboxIO();
 
 import { appendEvent } from "./event-log";
 import { hasExecutedThisMonth, markExecuted } from "./idempotency-store";
+import { hasAwaitingApprovalMarker, hasValidApproval, writeAwaitingApprovalMarker } from "./approval-store";
 import { determineRebalanceTarget } from "./scheduling";
 import { resolveAlpacaPaperCredentials } from "./credentials";
 import { appendForwardEvidence } from "./forward-evidence-store";
@@ -56,8 +66,9 @@ import { fetchRs3mUniverse } from "../lib/fetch-candidate-assets";
 import { createAlpacaPaperTradingClient } from "@/core/execution/alpaca-paper-client";
 import { getEasternWallClockParts, isCalendarDateTradingDay, type CalendarDateOnly } from "@/core/market-hours/nyse-calendar";
 import { createRs3mEngine, type Rs3mExecuteResult, type Rs3mPlanResult } from "@/core/paper-trading/rs3m/rs3m-engine";
-import { RS3M_CANDIDATE_V1 } from "@/core/paper-trading/rs3m/candidate";
+import { computeCandidateHash, RS3M_CANDIDATE_V1 } from "@/core/paper-trading/rs3m/candidate";
 import { buildForwardEvidenceRecord } from "@/core/paper-trading/rs3m/forward-evidence";
+import { classifyBlockedPlanNotification } from "@/core/paper-trading/rs3m/notification-policy";
 import type { Rs3mNotificationEvent } from "@/core/paper-trading/rs3m/notification-events";
 import type { RelativeStrengthAssetInput } from "@/core/backtesting/research/relative-strength";
 
@@ -70,9 +81,26 @@ function notify(type: Rs3mNotificationEvent["type"], summary: string, detail: Re
   return notifications.notify({ type, timestamp: new Date().toISOString(), summary, detail });
 }
 
-/** Picks GUARD_BLOCKED vs the more specific STALE_SIGNAL alert type — both are in the spec's event vocabulary. */
-function guardBlockedNotificationType(planResult: Rs3mPlanResult): Rs3mNotificationEvent["type"] {
-  return planResult.guardResult.violations.some((v) => v.guard === "STALE_SIGNAL") ? "STALE_SIGNAL" : "GUARD_BLOCKED";
+/** Builds the full, human-readable snapshot for the ONE notification that matters: the first fresh signal ready for manual approval. Every field the spec asked for. */
+function buildAwaitingApprovalSnapshot(now: Date, decisionMonthKey: string, dataCutoffIso: string, planResult: Rs3mPlanResult): Record<string, unknown> {
+  return {
+    checkedAt: now.toISOString(),
+    decisionMonth: decisionMonthKey,
+    dataCutoff: dataCutoffIso,
+    ranking: planResult.signal?.ranking,
+    winner: planResult.signal?.selectedMarket,
+    targetTicker: planResult.plan?.targetAsset,
+    currentPositions: planResult.positionsBefore?.map((p) => ({ symbol: p.symbol, marketValue: p.marketValue })),
+    proposedOrders: planResult.plan?.orders,
+    estimatedTurnoverPct: planResult.plan?.estimatedTurnoverPct,
+    accountEquityUsd: planResult.account?.equity,
+    candidateId: RS3M_CANDIDATE_V1.candidateId,
+    candidateHash: computeCandidateHash(RS3M_CANDIDATE_V1),
+    guardResult: planResult.guardResult,
+    mode: "PAPER_ONLY — no order has been submitted",
+    ordersSentSoFar: 0,
+    approvalInstructions: `npx tsx scripts/block6/paper/approve-rebalance.ts ${decisionMonthKey} "<your note>"`,
+  };
 }
 
 async function main() {
@@ -116,8 +144,9 @@ async function main() {
     return;
   }
 
+  const requireApproval = process.env.RS3M_REQUIRE_APPROVAL !== "false";
   const tradingClient = createAlpacaPaperTradingClient(paperCredentials);
-  const engine = createRs3mEngine({ tradingClient, hasExecutedThisMonth, nowIso: () => new Date().toISOString() });
+  const engine = createRs3mEngine({ tradingClient, hasExecutedThisMonth, nowIso: () => new Date().toISOString(), requireApproval, hasValidApproval });
 
   const isDryRun = process.env.DRY_RUN !== "false";
   const isPaperTradingEnabled = process.env.PAPER_TRADING === "true";
@@ -133,10 +162,23 @@ async function main() {
       orders: planResult.plan?.orders,
       violations: planResult.guardResult.violations,
     });
+
+    const notificationDecision = classifyBlockedPlanNotification(planResult);
     if (planResult.wouldExecute) {
       await notify("DRY_RUN_PASSED", `Dry-run plan for ${decisionMonthKey} would execute — all guards passed.`, { decisionMonthKey, targetAsset: planResult.plan?.targetAsset });
-    } else if (planResult.blockedReason !== "NO_REBALANCE_NEEDED") {
-      await notify(guardBlockedNotificationType(planResult), `Dry-run blocked for ${decisionMonthKey}: ${planResult.blockedReason}.`, { decisionMonthKey, violations: planResult.guardResult.violations });
+    } else if (notificationDecision.notify && notificationDecision.type === "SIGNAL_AWAITING_APPROVAL") {
+      // Fire the full detailed notification only ONCE per decision month.
+      if (!hasAwaitingApprovalMarker(decisionMonthKey)) {
+        const snapshot = buildAwaitingApprovalSnapshot(now, decisionMonthKey, dataCutoffIso, planResult);
+        writeAwaitingApprovalMarker(decisionMonthKey, snapshot);
+        await notify(
+          "SIGNAL_AWAITING_APPROVAL",
+          `Fresh signal for ${decisionMonthKey}: winner ${planResult.signal?.selectedMarket}, target ${planResult.plan?.targetAsset}. All guards passed except manual approval. PAPER only — no order has been sent. Run approve-rebalance.ts to authorize.`,
+          snapshot,
+        );
+      }
+    } else if (notificationDecision.notify) {
+      await notify(notificationDecision.type, `Dry-run blocked for ${decisionMonthKey}: ${planResult.blockedReason}.`, { decisionMonthKey, violations: planResult.guardResult.violations });
     }
 
     appendForwardEvidence(buildForwardEvidenceRecord({ nowIso: now.toISOString(), planResult }));
@@ -161,7 +203,12 @@ async function main() {
 
   if (executeResult.skipped) {
     appendEvent("SAFEGUARD_TRIGGERED", { decisionMonthKey, skipReason: executeResult.skipReason });
-    const notificationType = /broker|order submission|fail-closed/i.test(executeResult.skipReason ?? "") ? "BROKER_ERROR" : guardBlockedNotificationType(executeResult.planResult);
+    // Reaching execute() at all means the dry-run already deemed the plan safe (and approved) —
+    // any skip here is inherently unexpected/noteworthy, never routine daily noise. Broker-side
+    // failures (submission rejected, couldn't verify existing orders, prior attempt failed) get
+    // their own BROKER_ERROR type; anything else falls back to GUARD_BLOCKED.
+    const isBrokerFailure = /broker|order submission|fail-closed/i.test(executeResult.skipReason ?? "");
+    const notificationType: Rs3mNotificationEvent["type"] = isBrokerFailure ? "BROKER_ERROR" : "GUARD_BLOCKED";
     await notify(notificationType, `Execution skipped for ${decisionMonthKey}: ${executeResult.skipReason}.`, { decisionMonthKey, skipReason: executeResult.skipReason });
     appendForwardEvidence(buildForwardEvidenceRecord({ nowIso: now.toISOString(), planResult: executeResult.planResult, executeResult }));
     console.log(`\n=== Execution skipped: ${executeResult.skipReason} ===`);
@@ -181,13 +228,14 @@ async function main() {
   writeFileSync(join(ORDERS_OUTPUT_DIR, `${decisionMonthKey}.json`), JSON.stringify({ decisionMonthKey, executedAt: now.toISOString(), orders: executeResult.ordersSubmitted }, null, 2));
   appendEvent("ORDERS_SUBMITTED", { decisionMonthKey, orders: executeResult.ordersSubmitted });
 
-  const positionsAfterResult = await tradingClient.getPositions();
+  const [positionsAfterResult, accountAfterResult] = await Promise.all([tradingClient.getPositions(), tradingClient.getAccount()]);
   appendForwardEvidence(
     buildForwardEvidenceRecord({
       nowIso: now.toISOString(),
       planResult: executeResult.planResult,
       executeResult,
       positionsAfter: positionsAfterResult.ok ? positionsAfterResult.value.map((p) => ({ symbol: p.symbol, marketValue: p.marketValue })) : undefined,
+      accountEquityAfterUsd: accountAfterResult.ok ? accountAfterResult.value.equity : undefined,
     }),
   );
 

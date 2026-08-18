@@ -90,6 +90,10 @@ function makeDeps(overrides: Partial<Rs3mEngineDependencies> = {}): Rs3mEngineDe
     hasExecutedThisMonth: vi.fn().mockResolvedValue(false),
     nowIso: () => "2026-04-29T13:30:00Z",
     sleep: vi.fn().mockResolvedValue(undefined), // instant in tests — never wait on a real timer
+    // Approval mode is OFF by default in these fixtures so existing tests keep exercising the
+    // OTHER guards unchanged — dedicated tests below cover requireApproval: true behavior.
+    requireApproval: false,
+    hasValidApproval: vi.fn().mockResolvedValue(false),
     ...overrides,
   };
 }
@@ -197,6 +201,78 @@ describe("createRs3mEngine — dryRun", () => {
     expect(result.signal).toBeUndefined();
     expect(result.blockedReason).toBe("MALFORMED_DATA");
     expect(result.guardResult.violations.some((v) => v.guard === "MALFORMED_DATA")).toBe(true);
+  });
+});
+
+describe("createRs3mEngine — manual approval gate", () => {
+  it("a fresh, guard-passing signal is blocked with AWAITING_APPROVAL when approval mode is on and no approval is on file (required test #1)", async () => {
+    const engine = createRs3mEngine(makeDeps({ requireApproval: true, hasValidApproval: vi.fn().mockResolvedValue(false) }));
+
+    const result = await engine.dryRun(buildUniverse());
+
+    expect(result.wouldExecute).toBe(false);
+    expect(result.blockedReason).toBe("AWAITING_APPROVAL");
+    expect(result.guardResult.violations).toEqual([{ guard: "APPROVAL_REQUIRED", reason: expect.any(String) }]);
+  });
+
+  it("without approval, execute() submits ZERO orders (required test #2)", async () => {
+    const submitMock = vi.fn();
+    const client = makeFakeClient({ submitNotionalOrder: submitMock });
+    const engine = createRs3mEngine(makeDeps({ tradingClient: client, requireApproval: true, hasValidApproval: vi.fn().mockResolvedValue(false) }));
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(true);
+    expect(result.ordersSubmitted).toEqual([]);
+  });
+
+  it("with a valid approval for this exact decision month/hash AND every other guard passing, execute() proceeds to submit (required test #3)", async () => {
+    const submitMock = vi.fn().mockResolvedValue({ ok: true, value: order({ clientOrderId: "rs3m-2026-04-spy-buy" }) });
+    const client = makeFakeClient({ submitNotionalOrder: submitMock });
+    const hasValidApproval = vi.fn().mockResolvedValue(true);
+    const engine = createRs3mEngine(makeDeps({ tradingClient: client, requireApproval: true, hasValidApproval }));
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(result.skipped).toBe(false);
+    expect(submitMock).toHaveBeenCalled();
+    expect(hasValidApproval).toHaveBeenCalledWith("2026-04", expect.any(String));
+  });
+
+  it("an approval recorded for this month does NOT survive the signal going stale by the time it's re-checked (required test #4) — approval can never outrun guard re-verification", async () => {
+    const submitMock = vi.fn();
+    const client = makeFakeClient({ submitNotionalOrder: submitMock });
+    const engine = createRs3mEngine(
+      makeDeps({
+        tradingClient: client,
+        requireApproval: true,
+        hasValidApproval: vi.fn().mockResolvedValue(true),
+        nowIso: () => "2026-05-30T13:30:00Z", // 30 days after the April signal's cutoff — stale.
+      }),
+    );
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(true);
+    expect(result.planResult.guardResult.violations.some((v) => v.guard === "STALE_SIGNAL")).toBe(true);
+  });
+
+  it("an approval never bypasses a tampered candidate hash — guards are re-run fresh regardless of approval", async () => {
+    // Simulate tampering by making hasValidApproval record an approval for a DIFFERENT hash —
+    // hasValidApproval itself is the exact-match check in the real system (approval-store.ts),
+    // so a mismatched hash means "no valid approval," proving approval can't paper over a mismatch.
+    const submitMock = vi.fn();
+    const client = makeFakeClient({ submitNotionalOrder: submitMock });
+    const hasValidApproval = vi.fn().mockImplementation(async (_month: string, hash: string) => hash === "some-other-hash-not-1c28b57c");
+    const engine = createRs3mEngine(makeDeps({ tradingClient: client, requireApproval: true, hasValidApproval }));
+
+    const result = await engine.execute(buildUniverse());
+
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(true);
+    expect(result.planResult.blockedReason).toBe("AWAITING_APPROVAL");
   });
 });
 

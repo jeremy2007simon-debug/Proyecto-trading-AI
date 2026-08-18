@@ -47,7 +47,10 @@ export interface ForwardEvidenceRecord {
   dataCutoff: string | undefined;
   ranking: { market: string; trailingReturnPct: number }[];
   winner: string | undefined;
+  /** Account equity BEFORE this rebalance attempt (as of the plan computation). */
   accountEquityUsd: number | undefined;
+  /** Account equity AFTER execution — `undefined` for a dry-run/blocked attempt that never traded, or when the post-execution read itself failed (never guessed). */
+  accountEquityAfterUsd: number | undefined;
   positionsBefore: ForwardEvidencePosition[] | undefined;
   targetAsset: string | undefined;
   proposedOrders: { symbol: string; side: "buy" | "sell"; notionalUsd: number; reason: string }[];
@@ -78,6 +81,8 @@ export interface BuildForwardEvidenceParams {
   executeResult?: Rs3mExecuteResult;
   /** Positions read AFTER execution (or `undefined` for a dry-run/blocked attempt that never traded). A fresh `getPositions()` call by the caller — the engine's own return shape only carries the BEFORE snapshot. */
   positionsAfter?: ForwardEvidencePosition[];
+  /** Account equity read AFTER execution — a fresh `getAccount()` call by the caller, same reasoning as `positionsAfter`. */
+  accountEquityAfterUsd?: number;
 }
 
 export function buildForwardEvidenceRecord(params: BuildForwardEvidenceParams): ForwardEvidenceRecord {
@@ -102,6 +107,7 @@ export function buildForwardEvidenceRecord(params: BuildForwardEvidenceParams): 
     ranking: planResult.signal?.ranking ?? [],
     winner: planResult.signal?.selectedMarket,
     accountEquityUsd: planResult.account?.equity,
+    accountEquityAfterUsd: params.accountEquityAfterUsd,
     positionsBefore: planResult.positionsBefore?.map((p) => ({ symbol: p.symbol, marketValue: p.marketValue })),
     targetAsset: planResult.plan?.targetAsset,
     proposedOrders: planResult.plan?.orders ?? [],

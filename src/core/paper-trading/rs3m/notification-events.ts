@@ -16,6 +16,8 @@
 export type Rs3mNotificationEventType =
   | "SIGNAL_GENERATED"
   | "DRY_RUN_PASSED"
+  /** The one notification the human is actually waiting for: every guard passed except the manual approval gate. Fired ONCE per decision month (see `approval-store.ts#hasAwaitingApprovalMarker`), never repeated daily. */
+  | "SIGNAL_AWAITING_APPROVAL"
   | "REBALANCE_STARTED"
   | "ORDER_SUBMITTED"
   | "ORDER_FILLED"

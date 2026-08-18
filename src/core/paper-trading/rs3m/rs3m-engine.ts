@@ -42,6 +42,16 @@ export interface Rs3mEngineDependencies {
   /** Reads the idempotency marker for `decisionMonth` — see `safety-guards.ts`'s `assertNotAlreadyExecutedThisMonth`. */
   hasExecutedThisMonth(decisionMonth: string): Promise<boolean>;
   nowIso(): string;
+  /**
+   * Operator mode switch — default true (require an explicit human
+   * approval before any real order submission). Only the caller
+   * (`run-rebalance.ts`'s `RS3M_REQUIRE_APPROVAL` env var) may set this
+   * to false; the engine itself never decides to skip approval. See
+   * `safety-guards.ts#assertApprovalGranted`.
+   */
+  requireApproval: boolean;
+  /** Reads the approval marker for (decisionMonth, candidateHash) — see `approval-store.ts#hasValidApproval`. Only ever consulted; never written by the engine. */
+  hasValidApproval(decisionMonth: string, candidateHash: string): Promise<boolean>;
   /** Injectable sleep for post-submission fill polling — defaults to a real timer. Tests pass a fake to stay instant. */
   sleep?: (ms: number) => Promise<void>;
   /** Max `getOrder` polls per freshly-submitted order while waiting for a terminal fill status. Default 5. */
@@ -56,7 +66,9 @@ export type Rs3mPlanBlockedReason =
   | "ACCOUNT_UNAVAILABLE"
   | "POSITIONS_UNAVAILABLE"
   | "NO_REBALANCE_NEEDED"
-  | "SAFETY_GUARD_FAILED";
+  | "SAFETY_GUARD_FAILED"
+  /** Every OTHER guard passed — this is the ONLY thing blocking real execution. Distinct from the generic SAFETY_GUARD_FAILED so callers can distinguish "ready and waiting on you" from "something is actually wrong." */
+  | "AWAITING_APPROVAL";
 
 export interface Rs3mPlanResult {
   signal: Rs3mSignal | undefined;
@@ -126,6 +138,8 @@ export function createRs3mEngine(deps: Rs3mEngineDependencies) {
     });
 
     const alreadyExecuted = await deps.hasExecutedThisMonth(signal.decisionMonth);
+    const candidateHash = computeCandidateHash(RS3M_CANDIDATE_V1);
+    const approvalGranted = await deps.hasValidApproval(signal.decisionMonth, candidateHash);
     const currentlyHeldSymbols = new Set(
       positionsResult.value.filter((p) => universeSymbols.includes(p.symbol) && p.marketValue > 0).map((p) => p.symbol),
     );
@@ -139,16 +153,19 @@ export function createRs3mEngine(deps: Rs3mEngineDependencies) {
       signalDataCutoffTimestamp: signal.dataCutoffTimestamp,
       nowIso: deps.nowIso(),
       candidateId: RS3M_CANDIDATE_V1.candidateId,
-      candidateHash: computeCandidateHash(RS3M_CANDIDATE_V1),
+      candidateHash,
+      requireApproval: deps.requireApproval,
+      approvalGranted,
     });
 
     const wouldExecute = guardResult.passed && plan.isRebalanceNeeded;
+    const onlyApprovalMissing = !wouldExecute && plan.isRebalanceNeeded && guardResult.violations.length === 1 && guardResult.violations[0].guard === "APPROVAL_REQUIRED";
     return {
       signal,
       plan,
       guardResult,
       wouldExecute,
-      blockedReason: wouldExecute ? undefined : !guardResult.passed ? "SAFETY_GUARD_FAILED" : "NO_REBALANCE_NEEDED",
+      blockedReason: wouldExecute ? undefined : onlyApprovalMissing ? "AWAITING_APPROVAL" : !guardResult.passed ? "SAFETY_GUARD_FAILED" : "NO_REBALANCE_NEEDED",
       account: accountResult.value,
       positionsBefore: positionsResult.value,
     };

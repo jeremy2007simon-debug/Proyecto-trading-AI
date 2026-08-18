@@ -107,6 +107,21 @@ export function assertSignalNotStale(signalDataCutoffTimestamp: string, nowIso: 
   return undefined;
 }
 
+/**
+ * Refuses real order submission without an explicit human approval on
+ * file for THIS exact decision month/candidate hash — see
+ * `approval.ts`'s doc comment for why this can never let a stale or
+ * tampered signal slip through. `requireApproval` is the operator mode
+ * switch (default true, see `run-rebalance.ts`'s `RS3M_REQUIRE_APPROVAL`);
+ * when false this guard always passes.
+ */
+export function assertApprovalGranted(requireApproval: boolean, approvalGranted: boolean): SafetyGuardViolation | undefined {
+  if (requireApproval && !approvalGranted) {
+    return { guard: "APPROVAL_REQUIRED", reason: "No explicit human approval on file for this decision month/candidate hash — refusing to submit real (paper) orders until approved." };
+  }
+  return undefined;
+}
+
 export interface RunAllGuardsParams {
   orders: readonly RebalancePlanOrder[];
   currentlyHeldSymbols: ReadonlySet<string>;
@@ -120,6 +135,9 @@ export interface RunAllGuardsParams {
   candidateId: string;
   candidateHash: string;
   expectedCandidateHash?: string;
+  /** See `assertApprovalGranted`. */
+  requireApproval: boolean;
+  approvalGranted: boolean;
 }
 
 /** Runs every guard and collects ALL violations (never short-circuits) — "si cualquier safeguard falla: NO OPERAR." */
@@ -137,6 +155,9 @@ export function runAllRs3mSafetyGuards(params: RunAllGuardsParams): SafetyGuardR
 
   const staleness = assertSignalNotStale(params.signalDataCutoffTimestamp, params.nowIso, params.maxStaleDays);
   if (staleness) violations.push(staleness);
+
+  const approval = assertApprovalGranted(params.requireApproval, params.approvalGranted);
+  if (approval) violations.push(approval);
 
   for (const order of params.orders) {
     const symbolCheck = assertSymbolWhitelisted(order.symbol);

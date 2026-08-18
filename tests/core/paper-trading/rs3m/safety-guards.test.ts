@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertApprovalGranted,
   assertCandidateHashNotTampered,
   assertNoLeverage,
   assertNoShortOrder,
@@ -112,6 +113,21 @@ describe("assertCandidateHashNotTampered", () => {
   });
 });
 
+describe("assertApprovalGranted", () => {
+  it("passes when approval is not required (mode off)", () => {
+    expect(assertApprovalGranted(false, false)).toBeUndefined();
+  });
+
+  it("passes when approval is required and has been granted", () => {
+    expect(assertApprovalGranted(true, true)).toBeUndefined();
+  });
+
+  it("fails when approval is required but not granted", () => {
+    const violation = assertApprovalGranted(true, false);
+    expect(violation?.guard).toBe("APPROVAL_REQUIRED");
+  });
+});
+
 describe("runAllRs3mSafetyGuards", () => {
   const baseParams = {
     orders: [{ symbol: "SPY", side: "buy", notionalUsd: 10000, reason: "x" } satisfies RebalancePlanOrder],
@@ -123,6 +139,8 @@ describe("runAllRs3mSafetyGuards", () => {
     nowIso: "2026-08-03T14:00:00Z",
     candidateId: "RS3M_CANDIDATE_V1",
     candidateHash: EXPECTED_RS3M_CANDIDATE_V1_HASH,
+    requireApproval: false,
+    approvalGranted: false,
   };
 
   it("passes when every guard passes", () => {
@@ -156,5 +174,28 @@ describe("runAllRs3mSafetyGuards", () => {
     const result = runAllRs3mSafetyGuards({ ...baseParams, candidateHash: "tampered-hash" });
     expect(result.passed).toBe(false);
     expect(result.violations.some((v) => v.guard === "CANDIDATE_HASH_MISMATCH")).toBe(true);
+  });
+
+  it("blocks the whole run when approval is required but not granted, even if every other guard passes", () => {
+    const result = runAllRs3mSafetyGuards({ ...baseParams, requireApproval: true, approvalGranted: false });
+    expect(result.passed).toBe(false);
+    expect(result.violations).toEqual([{ guard: "APPROVAL_REQUIRED", reason: expect.any(String) }]);
+  });
+
+  it("passes when approval is required AND granted, with everything else clean", () => {
+    const result = runAllRs3mSafetyGuards({ ...baseParams, requireApproval: true, approvalGranted: true });
+    expect(result.passed).toBe(true);
+  });
+
+  it("an approval being granted never bypasses a genuinely failing guard (e.g. a tampered hash)", () => {
+    const result = runAllRs3mSafetyGuards({ ...baseParams, requireApproval: true, approvalGranted: true, candidateHash: "tampered-hash" });
+    expect(result.passed).toBe(false);
+    expect(result.violations.some((v) => v.guard === "CANDIDATE_HASH_MISMATCH")).toBe(true);
+  });
+
+  it("an approval being granted never bypasses a stale signal", () => {
+    const result = runAllRs3mSafetyGuards({ ...baseParams, requireApproval: true, approvalGranted: true, signalDataCutoffTimestamp: "2026-07-01T00:00:00Z", nowIso: "2026-08-15T00:00:00Z" });
+    expect(result.passed).toBe(false);
+    expect(result.violations.some((v) => v.guard === "STALE_SIGNAL")).toBe(true);
   });
 });

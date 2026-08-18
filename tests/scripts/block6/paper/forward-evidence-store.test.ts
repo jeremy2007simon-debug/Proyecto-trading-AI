@@ -26,6 +26,7 @@ function record(overrides: Partial<ForwardEvidenceRecord> = {}): ForwardEvidence
     ranking: [{ market: "DOWJONES", trailingReturnPct: 5.9 }],
     winner: "DOWJONES",
     accountEquityUsd: 100000,
+    accountEquityAfterUsd: undefined,
     positionsBefore: [],
     targetAsset: "DIA",
     proposedOrders: [{ symbol: "DIA", side: "buy", notionalUsd: 100000, reason: "x" }],

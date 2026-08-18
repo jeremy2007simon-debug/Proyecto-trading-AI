@@ -32,7 +32,7 @@ describe("buildForwardEvidenceRecord", () => {
   it("marks EXECUTED and captures fills/order IDs/positions-after when execute() succeeded", () => {
     const executeResult: Rs3mExecuteResult = { planResult: basePlanResult(), ordersSubmitted: [alpacaOrder({ symbol: "QQQ", side: "sell", status: "filled", filledAvgPrice: 900.5 }), alpacaOrder()], skipped: false, anyOrderStillInFlight: false };
 
-    const record = buildForwardEvidenceRecord({ nowIso: "2026-09-01T13:36:00Z", planResult: basePlanResult(), executeResult, positionsAfter: [{ symbol: "DIA", marketValue: 10000 }] });
+    const record = buildForwardEvidenceRecord({ nowIso: "2026-09-01T13:36:00Z", planResult: basePlanResult(), executeResult, positionsAfter: [{ symbol: "DIA", marketValue: 10000 }], accountEquityAfterUsd: 99850.5 });
 
     expect(record.finalState).toBe("EXECUTED");
     expect(record.candidateId).toBe("RS3M_CANDIDATE_V1");
@@ -41,6 +41,7 @@ describe("buildForwardEvidenceRecord", () => {
     expect(record.submittedOrders[1].orderId).toBe("o1");
     expect(record.averageFillPriceBySymbol).toEqual({ QQQ: 900.5, SPY: 501.23 });
     expect(record.positionsAfter).toEqual([{ symbol: "DIA", marketValue: 10000 }]);
+    expect(record.accountEquityAfterUsd).toBe(99850.5);
     expect(record.mode).toBe("PAPER_ONLY");
   });
 
