@@ -168,3 +168,17 @@ classifications for a trailing window from `input.candles` itself and only
 single call. See `src/core/market-regime/rule-based-regime-detector.ts` for
 the five sub-scores (`trendScore`, `volatilityScore`, `breakoutScore`,
 `rangeScore`, `momentumScore`) and the classification precedence.
+
+## 10. NovaCore Trading Lab (Block 7)
+
+`src/novacore/**` is a separate control/observability plane layered on top of
+everything above and on top of Block 6's RS3M paper-trading infrastructure
+(`src/core/paper-trading/rs3m/**`, `scripts/block6/**`). It reads and aggregates —
+it never reimplements strategy logic, never recomputes a metric a frozen report
+already publishes, and never imports a write-side function from Block 6. Dashboard
+routes live under `/novacore/**` (own sidebar section, own `/api/novacore/**` API
+namespace) and are entirely separate from the legacy Consensus/Signal Strategy
+Manager pages/routes described above (`/strategies`, `/api/strategies`) — the two
+are deliberately not conflated. Full detail, module map, and the read-only
+guarantees enforced by `tests/novacore/read-only-guarantees.test.ts`:
+`docs/BLOCK7_NOVACORE_TRADING_LAB.md`.
