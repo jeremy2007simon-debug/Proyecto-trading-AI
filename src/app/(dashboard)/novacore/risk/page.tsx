@@ -8,28 +8,28 @@ export default function NovaCoreRiskPage() {
 
   return (
     <div>
-      <PageHeader title="Risk & Analytics" description="Strategy, execution, and forward risk metrics. No automatic allocator — read only." />
+      <PageHeader title="Riesgo y Analítica" description="Métricas de riesgo de estrategia, ejecución y forward. Sin allocator automático — solo lectura." />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Historical drawdown & return" description={risk.strategyMetrics.sourceDoc} />
+          <CardHeader title="Drawdown y retorno histórico" description={risk.strategyMetrics.sourceDoc} />
           <CardBody className="grid grid-cols-2 gap-3 p-4">
-            <StatTile label="Full-history MaxDD" value={`${risk.strategyMetrics.maxDrawdownPct.toFixed(2)}%`} />
-            <StatTile label="Volatility (annualized)" value={`${risk.strategyMetrics.volatilityPct.toFixed(2)}%`} />
+            <StatTile label="MaxDD histórico completo" value={`${risk.strategyMetrics.maxDrawdownPct.toFixed(2)}%`} />
+            <StatTile label="Volatilidad (anualizada)" value={`${risk.strategyMetrics.volatilityPct.toFixed(2)}%`} />
             <StatTile label="Sharpe" value={risk.strategyMetrics.sharpe.toFixed(2)} />
             <StatTile label="Calmar" value={risk.strategyMetrics.calmar.toFixed(2)} />
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader title="Forward (paper) risk" description="Computed only from real, persisted forward evidence — never a live-refreshed backtest." />
+          <CardHeader title="Riesgo forward (paper)" description="Calculado solo a partir de evidencia forward real y persistida — nunca de un backtest recalculado en vivo." />
           <CardBody className="p-4">
             {risk.forwardMetrics.available ? (
               <div className="grid grid-cols-2 gap-3">
-                <StatTile label="Months observed" value={risk.forwardMetrics.monthsObserved} />
-                <StatTile label="Forward MaxDD" value={`${risk.forwardMetrics.maxDrawdownPct.toFixed(2)}%`} />
-                <StatTile label="Forward CAGR" value={risk.forwardMetrics.cagrPct !== undefined ? `${risk.forwardMetrics.cagrPct.toFixed(2)}%` : "—"} />
-                <StatTile label="Excess vs SPY" value={risk.forwardMetrics.excessReturnVsSpyPct !== undefined ? `${risk.forwardMetrics.excessReturnVsSpyPct.toFixed(2)}pp` : "—"} />
+                <StatTile label="Meses observados" value={risk.forwardMetrics.monthsObserved} />
+                <StatTile label="MaxDD forward" value={`${risk.forwardMetrics.maxDrawdownPct.toFixed(2)}%`} />
+                <StatTile label="CAGR forward" value={risk.forwardMetrics.cagrPct !== undefined ? `${risk.forwardMetrics.cagrPct.toFixed(2)}%` : "—"} />
+                <StatTile label="Exceso vs. SPY" value={risk.forwardMetrics.excessReturnVsSpyPct !== undefined ? `${risk.forwardMetrics.excessReturnVsSpyPct.toFixed(2)}pp` : "—"} />
               </div>
             ) : (
               <p className="text-sm text-muted">{risk.forwardMetrics.reason}</p>
@@ -38,12 +38,12 @@ export default function NovaCoreRiskPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Out-of-sample finding" description={`${risk.oosMetrics.periodLabel} · ${risk.oosMetrics.sourceDoc}`} />
+          <CardHeader title="Hallazgo out-of-sample" description={`${risk.oosMetrics.periodLabel} · ${risk.oosMetrics.sourceDoc}`} />
           <CardBody className="p-4">
             <div className="grid grid-cols-2 gap-3">
-              <StatTile label="Excess vs SPY" value={`${risk.oosMetrics.excessReturnVsSpyPct.toFixed(2)}pp`} valueClassName="text-sell" />
-              <StatTile label="Downside capture" value={`${risk.oosMetrics.downsideCapturePct.toFixed(1)}%`} valueClassName="text-sell" />
-              <StatTile label="Upside capture" value={`${risk.oosMetrics.upsideCapturePct.toFixed(1)}%`} />
+              <StatTile label="Exceso vs. SPY" value={`${risk.oosMetrics.excessReturnVsSpyPct.toFixed(2)}pp`} valueClassName="text-sell" />
+              <StatTile label="Captura de bajadas" value={`${risk.oosMetrics.downsideCapturePct.toFixed(1)}%`} valueClassName="text-sell" />
+              <StatTile label="Captura de subidas" value={`${risk.oosMetrics.upsideCapturePct.toFixed(1)}%`} />
               <StatTile label="Information ratio" value={risk.oosMetrics.informationRatio.toFixed(2)} valueClassName="text-sell" />
             </div>
             <p className="mt-4 text-xs text-muted">{risk.oosMetrics.note}</p>
@@ -51,22 +51,22 @@ export default function NovaCoreRiskPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Execution risk" description="Broker-side execution health for RS3M." />
+          <CardHeader title="Riesgo de ejecución" description="Salud de la ejecución en el broker para RS3M." />
           <CardBody className="grid grid-cols-2 gap-3 p-4">
-            <StatTile label="Orders submitted" value={risk.executionMetrics.ordersSubmitted} />
-            <StatTile label="Orders rejected" value={risk.executionMetrics.ordersRejected} />
-            <StatTile label="Partial fills" value={risk.executionMetrics.ordersPartialFill} />
-            <StatTile label="Execution errors" value={risk.executionMetrics.executionErrors} />
+            <StatTile label="Órdenes enviadas" value={risk.executionMetrics.ordersSubmitted} />
+            <StatTile label="Órdenes rechazadas" value={risk.executionMetrics.ordersRejected} />
+            <StatTile label="Fills parciales" value={risk.executionMetrics.ordersPartialFill} />
+            <StatTile label="Errores de ejecución" value={risk.executionMetrics.executionErrors} />
           </CardBody>
         </Card>
       </div>
 
       <div className="mt-6">
         <Card>
-          <CardHeader title="Cost robustness" description={risk.costRobustness.sourceDoc} />
+          <CardHeader title="Robustez frente a costes" description={risk.costRobustness.sourceDoc} />
           <CardBody className="grid grid-cols-2 gap-3 p-4">
-            <StatTile label="Reference cost" value={`${risk.costRobustness.referenceRebalanceCostBps} bps`} />
-            <StatTile label="Break-even cost" value={`${risk.costRobustness.breakEvenCostBps.toFixed(1)} bps`} />
+            <StatTile label="Coste de referencia" value={`${risk.costRobustness.referenceRebalanceCostBps} bps`} />
+            <StatTile label="Coste de break-even" value={`${risk.costRobustness.breakEvenCostBps.toFixed(1)} bps`} />
           </CardBody>
         </Card>
       </div>

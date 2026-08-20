@@ -55,11 +55,11 @@ export const NAV_ITEMS: NavItem[] = [
  */
 export const NOVACORE_NAV_ITEMS: NavItem[] = [
   { label: "NovaCore", href: "/novacore", icon: Sparkles },
-  { label: "Strategy Hub", href: "/novacore/strategies", icon: Boxes },
-  { label: "Research Lab", href: "/novacore/research", icon: FlaskConical },
-  { label: "Execution Center", href: "/novacore/execution", icon: ArrowRightLeft },
-  { label: "Risk & Analytics", href: "/novacore/risk", icon: PieChart },
-  { label: "Activity Feed", href: "/novacore/activity", icon: History },
+  { label: "Estrategias", href: "/novacore/strategies", icon: Boxes },
+  { label: "Investigación", href: "/novacore/research", icon: FlaskConical },
+  { label: "Ejecución", href: "/novacore/execution", icon: ArrowRightLeft },
+  { label: "Riesgo y Analítica", href: "/novacore/risk", icon: PieChart },
+  { label: "Actividad", href: "/novacore/activity", icon: History },
 ];
 
 export const KILL_SWITCH_NAV_ICON = AlertTriangle;
