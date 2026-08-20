@@ -1,0 +1,1 @@
+Deployed for visual review of the NovaCore dashboard. Read-only, no Alpaca credentials, no live trading.
