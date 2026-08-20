@@ -1,1 +1,1 @@
-Retriggered 2026-08-20T17:42:38Z — commit 2b9f05a (Observability Upgrade + Mobile UX/Market News)
+Retriggered 2026-08-20T17:47:14Z — project was paused, now unpaused
