@@ -1,2 +1,1 @@
-Deployed for visual review of the NovaCore dashboard. Read-only, no Alpaca credentials, no live trading.
-Retriggered 2026-08-20T09:48:03Z
+Retriggered 2026-08-20T17:42:38Z — commit 2b9f05a (Observability Upgrade + Mobile UX/Market News)
