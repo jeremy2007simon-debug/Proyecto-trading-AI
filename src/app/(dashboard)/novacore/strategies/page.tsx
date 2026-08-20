@@ -9,7 +9,7 @@ export default function NovaCoreStrategiesPage() {
 
   return (
     <div>
-      <PageHeader title="Strategy Hub" description="Every strategy NovaCore tracks, across research, paper, and (eventually) live. Read-only." />
+      <PageHeader title="Strategy Hub" description="Todas las estrategias que sigue NovaCore, en investigación, paper y (en el futuro) en vivo. Solo lectura." />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {strategies.map((strategy) => (
