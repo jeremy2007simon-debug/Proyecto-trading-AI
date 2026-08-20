@@ -4,12 +4,16 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { buildActivityFeed } from "@/novacore/activity-feed/build-activity-feed";
 import type { NovaCoreEventDomain } from "@/novacore/events/types";
 
-const DOMAINS: NovaCoreEventDomain[] = ["research", "strategy", "execution", "system"];
+const DOMAINS: NovaCoreEventDomain[] = ["research", "strategy", "signal", "guard", "approval", "execution", "broker", "system"];
 
 const DOMAIN_LABELS: Record<NovaCoreEventDomain, string> = {
   research: "investigación",
   strategy: "estrategia",
+  signal: "señal",
+  guard: "guard",
+  approval: "aprobación",
   execution: "ejecución",
+  broker: "broker",
   system: "sistema",
 };
 

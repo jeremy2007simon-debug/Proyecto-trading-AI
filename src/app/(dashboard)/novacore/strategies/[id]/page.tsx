@@ -1,12 +1,17 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatTile } from "@/components/dashboard/StatTile";
-import { HealthBadge, StrategyStatusBadge } from "@/components/novacore/StatusBadge";
+import { ExecutionSafetyPanel } from "@/components/novacore/ExecutionSafetyPanel";
+import { ForwardPerformancePanel } from "@/components/novacore/ForwardPerformancePanel";
+import { SignalCard } from "@/components/novacore/SignalCard";
+import { HealthBadge, MetricScopeBadge, StrategyStatusBadge } from "@/components/novacore/StatusBadge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { RS3M_CANDIDATE_V1 } from "@/core/paper-trading/rs3m/candidate";
 import { getRs3mExecutionSnapshot } from "@/novacore/execution-center/adapters/rs3m-execution-adapter";
+import { getRs3mExecutionSafety } from "@/novacore/execution-center/adapters/rs3m-guards-adapter";
 import { getRs3mHealth } from "@/novacore/health/rs3m-health";
 import { getRs3mRiskSnapshot } from "@/novacore/risk-analytics/adapters/rs3m-risk-adapter";
+import { getRs3mCurrentSignal } from "@/novacore/strategy-hub/adapters/rs3m-signal-adapter";
 import { getNovaCoreStrategyById } from "@/novacore/strategy-hub/registry";
 
 export default async function NovaCoreStrategyDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,9 +20,9 @@ export default async function NovaCoreStrategyDetailPage({ params }: { params: P
   if (!strategy) notFound();
 
   const isRs3m = id === RS3M_CANDIDATE_V1.candidateId;
-  const [execution, risk, health] = isRs3m
-    ? await Promise.all([getRs3mExecutionSnapshot(), getRs3mRiskSnapshot(), getRs3mHealth()])
-    : [undefined, undefined, undefined];
+  const [execution, risk, health, safety, signal] = isRs3m
+    ? await Promise.all([getRs3mExecutionSnapshot(), getRs3mRiskSnapshot(), getRs3mHealth(), getRs3mExecutionSafety(), Promise.resolve(getRs3mCurrentSignal())])
+    : [undefined, undefined, undefined, undefined, undefined];
 
   return (
     <div>
@@ -27,15 +32,29 @@ export default async function NovaCoreStrategyDetailPage({ params }: { params: P
         action={<StrategyStatusBadge status={strategy.status} />}
       />
 
+      <div className="mb-6 rounded-xl border border-wait/30 bg-wait/5 px-4 py-3 text-xs text-wait">
+        <strong>HISTORICAL BACKTEST ≠ FORWARD PAPER RESULTS.</strong> PAPER_READY no significa PAPER_RUNNING. AUDIT_PASSED no significa VALIDATED. No existe el estado VALIDATED para RS3M.
+      </div>
+
       <Card>
         <CardHeader title="Hipótesis" />
         <CardBody className="p-4 text-sm text-muted">{strategy.hypothesis}</CardBody>
       </Card>
 
+      {signal ? (
+        <div className="mt-6">
+          <SignalCard signal={signal} />
+        </div>
+      ) : null}
+
       {strategy.performance?.historical ? (
         <div className="mt-6">
           <Card>
-            <CardHeader title="Rendimiento histórico" description={`${strategy.performance.historical.periodStart} → ${strategy.performance.historical.periodEnd} · ${strategy.performance.historical.sourceDoc}`} />
+            <CardHeader
+              title="Rendimiento histórico"
+              description={`${strategy.performance.historical.periodStart} → ${strategy.performance.historical.periodEnd} · ${strategy.performance.historical.sourceDoc}`}
+              action={<MetricScopeBadge scope="BACKTEST" />}
+            />
             <CardBody className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
               <StatTile label="Retorno total" value={`${strategy.performance.historical.totalReturnPct.toFixed(2)}%`} />
               <StatTile label="CAGR" value={`${strategy.performance.historical.cagrPct.toFixed(2)}%`} />
@@ -54,19 +73,31 @@ export default async function NovaCoreStrategyDetailPage({ params }: { params: P
       ) : null}
 
       {risk ? (
+        <>
+          <div className="mt-6">
+            <ForwardPerformancePanel forwardMetrics={risk.forwardMetrics} />
+          </div>
+
+          <div className="mt-6">
+            <Card>
+              <CardHeader title="Hallazgo out-of-sample" description={`${risk.oosMetrics.periodLabel} · ${risk.oosMetrics.sourceDoc}`} action={<MetricScopeBadge scope="OOS" />} />
+              <CardBody className="p-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <StatTile label="Exceso vs. SPY" value={`${risk.oosMetrics.excessReturnVsSpyPct.toFixed(2)}pp`} valueClassName="text-sell" />
+                  <StatTile label="Alpha (anualizado)" value={`${risk.oosMetrics.alphaAnnualizedPct.toFixed(2)}%`} valueClassName="text-sell" />
+                  <StatTile label="Information ratio" value={risk.oosMetrics.informationRatio.toFixed(2)} valueClassName="text-sell" />
+                  <StatTile label="Captura de bajadas" value={`${risk.oosMetrics.downsideCapturePct.toFixed(1)}%`} />
+                </div>
+                <p className="mt-4 text-xs text-muted">{risk.oosMetrics.note}</p>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      ) : null}
+
+      {safety ? (
         <div className="mt-6">
-          <Card>
-            <CardHeader title="Hallazgo out-of-sample" description={`${risk.oosMetrics.periodLabel} · ${risk.oosMetrics.sourceDoc}`} />
-            <CardBody className="p-4">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <StatTile label="Exceso vs. SPY" value={`${risk.oosMetrics.excessReturnVsSpyPct.toFixed(2)}pp`} valueClassName="text-sell" />
-                <StatTile label="Alpha (anualizado)" value={`${risk.oosMetrics.alphaAnnualizedPct.toFixed(2)}%`} valueClassName="text-sell" />
-                <StatTile label="Information ratio" value={risk.oosMetrics.informationRatio.toFixed(2)} valueClassName="text-sell" />
-                <StatTile label="Captura de bajadas" value={`${risk.oosMetrics.downsideCapturePct.toFixed(1)}%`} />
-              </div>
-              <p className="mt-4 text-xs text-muted">{risk.oosMetrics.note}</p>
-            </CardBody>
-          </Card>
+          <ExecutionSafetyPanel safety={safety} />
         </div>
       ) : null}
 

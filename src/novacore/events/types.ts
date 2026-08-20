@@ -12,17 +12,30 @@ import type { ISOTimestamp } from "@/novacore/shared/types";
 export type NovaCoreEventType =
   | "STRATEGY_SIGNAL"
   | "STRATEGY_STATUS_CHANGED"
+  | "SIGNAL_GENERATED"
+  | "SIGNAL_AWAITING_APPROVAL"
+  | "APPROVAL_GRANTED"
+  | "GUARD_PASSED"
+  | "GUARD_BLOCKED"
   | "ORDER_PLANNED"
   | "ORDER_SUBMITTED"
   | "ORDER_FILLED"
   | "ORDER_REJECTED"
-  | "GUARD_BLOCKED"
+  | "FORWARD_EVIDENCE_RECORDED"
+  | "MONTHLY_PERFORMANCE_RECORDED"
+  | "BROKER_ERROR"
   | "RESEARCH_EXPERIMENT_COMPLETED"
   | "CANDIDATE_CREATED"
   | "SYSTEM_WARNING"
   | "SYSTEM_ERROR";
 
-export type NovaCoreEventDomain = "research" | "strategy" | "execution" | "system";
+/**
+ * Observability Upgrade §10's requested taxonomy (RESEARCH, STRATEGY,
+ * SIGNAL, GUARD, APPROVAL, EXECUTION, BROKER, SYSTEM), lowercased to match
+ * this file's existing convention. Additive vs. the original 4-domain set
+ * — every event built before this upgrade still has a valid domain.
+ */
+export type NovaCoreEventDomain = "research" | "strategy" | "signal" | "guard" | "approval" | "execution" | "broker" | "system";
 
 export interface NovaCoreEvent {
   id: string;

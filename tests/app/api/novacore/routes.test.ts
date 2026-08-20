@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 import { GET as getActivity } from "@/app/api/novacore/activity/route";
 import { GET as getExecution } from "@/app/api/novacore/execution/route";
+import { GET as getSpy } from "@/app/api/novacore/market/spy/route";
 import { GET as getPortfolio } from "@/app/api/novacore/portfolio/route";
 import { GET as getResearch } from "@/app/api/novacore/research/route";
 import { GET as getRisk } from "@/app/api/novacore/risk/route";
@@ -93,6 +94,20 @@ describe("/api/novacore/* — read-only API layer", () => {
     expect(res.status).toBe(400);
   });
 
+  it("GET /api/novacore/market/spy", async () => {
+    const res = await getSpy(new NextRequest("http://localhost/api/novacore/market/spy?timeframe=1M"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ticker).toBe("SPY");
+    expect(body.timeframe).toBe("1M");
+    expect(typeof body.available).toBe("boolean");
+  });
+
+  it("GET /api/novacore/market/spy rejects an invalid timeframe", async () => {
+    const res = await getSpy(new NextRequest("http://localhost/api/novacore/market/spy?timeframe=5Y"));
+    expect(res.status).toBe(400);
+  });
+
   it("no route module in src/app/api/novacore exports POST/PUT/DELETE/PATCH", async () => {
     const modules = [
       await import("@/app/api/novacore/system/route"),
@@ -103,6 +118,7 @@ describe("/api/novacore/* — read-only API layer", () => {
       await import("@/app/api/novacore/execution/route"),
       await import("@/app/api/novacore/risk/route"),
       await import("@/app/api/novacore/activity/route"),
+      await import("@/app/api/novacore/market/spy/route"),
     ];
     for (const mod of modules) {
       const exported = mod as unknown as Record<string, unknown>;
