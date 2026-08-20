@@ -25,7 +25,18 @@ export function SpyBenchmarkChart() {
         if (!cancelled) setSeries(data);
       })
       .catch(() => {
-        if (!cancelled) setSeries({ available: false, unavailableReason: "Request failed.", timeframe, ticker: "SPY", points: [], provenance: "UNAVAILABLE", source: "Alpaca Market Data API (unavailable)" });
+        if (!cancelled)
+          setSeries({
+            available: false,
+            unavailableReason: "Request failed.",
+            timeframe,
+            market: "SP500",
+            label: "S&P 500 (SPY)",
+            ticker: "SPY",
+            points: [],
+            provenance: "UNAVAILABLE",
+            source: "Alpaca Market Data API (unavailable)",
+          });
       });
     return () => {
       cancelled = true;

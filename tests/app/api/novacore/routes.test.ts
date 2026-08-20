@@ -2,7 +2,11 @@ import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 import { GET as getActivity } from "@/app/api/novacore/activity/route";
 import { GET as getExecution } from "@/app/api/novacore/execution/route";
+import { GET as getChart } from "@/app/api/novacore/market/chart/route";
+import { GET as getMovers } from "@/app/api/novacore/market/movers/route";
+import { GET as getNews } from "@/app/api/novacore/market/news/route";
 import { GET as getSpy } from "@/app/api/novacore/market/spy/route";
+import { GET as getNotifications } from "@/app/api/novacore/notifications/route";
 import { GET as getPortfolio } from "@/app/api/novacore/portfolio/route";
 import { GET as getResearch } from "@/app/api/novacore/research/route";
 import { GET as getRisk } from "@/app/api/novacore/risk/route";
@@ -108,6 +112,46 @@ describe("/api/novacore/* — read-only API layer", () => {
     expect(res.status).toBe(400);
   });
 
+  it("GET /api/novacore/market/chart", async () => {
+    const res = await getChart(new NextRequest("http://localhost/api/novacore/market/chart?market=NASDAQ100&timeframe=1M"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.market).toBe("NASDAQ100");
+    expect(body.ticker).toBe("QQQ");
+  });
+
+  it("GET /api/novacore/market/chart rejects an invalid market", async () => {
+    const res = await getChart(new NextRequest("http://localhost/api/novacore/market/chart?market=BITCOIN"));
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/novacore/market/movers", async () => {
+    const res = await getMovers(new NextRequest("http://localhost/api/novacore/market/movers"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.movers).toHaveLength(4);
+  });
+
+  it("GET /api/novacore/market/news", async () => {
+    const res = await getNews(new NextRequest("http://localhost/api/novacore/market/news"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.available).toBe("boolean");
+    expect(Array.isArray(body.items)).toBe(true);
+  });
+
+  it("GET /api/novacore/market/news rejects an invalid category", async () => {
+    const res = await getNews(new NextRequest("http://localhost/api/novacore/market/news?category=NOT_REAL"));
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/novacore/notifications", async () => {
+    const res = await getNotifications(new NextRequest("http://localhost/api/novacore/notifications"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.notifications)).toBe(true);
+  });
+
   it("no route module in src/app/api/novacore exports POST/PUT/DELETE/PATCH", async () => {
     const modules = [
       await import("@/app/api/novacore/system/route"),
@@ -119,6 +163,10 @@ describe("/api/novacore/* — read-only API layer", () => {
       await import("@/app/api/novacore/risk/route"),
       await import("@/app/api/novacore/activity/route"),
       await import("@/app/api/novacore/market/spy/route"),
+      await import("@/app/api/novacore/market/chart/route"),
+      await import("@/app/api/novacore/market/movers/route"),
+      await import("@/app/api/novacore/market/news/route"),
+      await import("@/app/api/novacore/notifications/route"),
     ];
     for (const mod of modules) {
       const exported = mod as unknown as Record<string, unknown>;

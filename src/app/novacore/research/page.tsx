@@ -10,6 +10,11 @@ export default function NovaCoreResearchPage() {
     <div>
       <PageHeader title="Research Lab" description="Resúmenes sobre el motor de investigación existente (Bloques 4-5). Las cifras están transcritas de los informes congelados, nunca recalculadas." />
 
+      <div className="mb-6 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3 text-xs text-accent">
+        <strong>Investigación ≠ Trading.</strong> Nada de esta pantalla opera capital real ni Paper — es el laboratorio donde nacieron y murieron
+        hipótesis antes de que RS3M existiera como candidato.
+      </div>
+
       <div className="space-y-6">
         {projects.map((project) => (
           <Card key={project.id}>
