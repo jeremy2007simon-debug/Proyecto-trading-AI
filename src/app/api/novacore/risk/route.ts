@@ -10,5 +10,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
   }
 
-  return NextResponse.json({ strategies: [getRs3mRiskSnapshot()] });
+  return NextResponse.json({ strategies: [await getRs3mRiskSnapshot()] });
 }

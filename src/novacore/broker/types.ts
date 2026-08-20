@@ -32,7 +32,11 @@ export interface BrokerPositionSnapshot {
   qty: number;
   side: "long" | "short";
   marketValue: number;
+  avgEntryPrice: number;
+  currentPrice: number;
   unrealizedPl: number;
+  /** unrealizedPl / cost basis * 100 — computed here (not by the broker), never re-derived from a stale/cached price. undefined only if cost basis is 0. */
+  unrealizedPlPct: number | undefined;
 }
 
 export interface BrokerOrderSnapshot {

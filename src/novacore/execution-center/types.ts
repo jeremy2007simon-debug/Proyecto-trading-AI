@@ -1,4 +1,4 @@
-import type { HealthStatus, NovaCoreEnvironment } from "@/novacore/shared/types";
+import type { DataProvenance, HealthStatus, NovaCoreEnvironment } from "@/novacore/shared/types";
 
 /**
  * Block 7, section 8 — Execution Center. READ / MONITOR only (section 8's
@@ -15,8 +15,16 @@ export interface ExecutionCenterSnapshot {
   currentPosition: {
     state: "CASH" | "HOLDING" | "UNKNOWN";
     symbol?: string;
+    marketValue?: number;
+    unrealizedPl?: number;
+    unrealizedPlPct?: number;
     detail: string;
+    provenance: DataProvenance;
   };
+
+  /** Always "PAPER" — RS3M has no LIVE execution path anywhere in this codebase. */
+  executionMode: "PAPER";
+  liveStatus: "STRUCTURALLY_DISABLED";
 
   lastKnownSignal:
     | {

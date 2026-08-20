@@ -27,6 +27,13 @@ function toBrokerError(error: { code: string; message: string }): BrokerError {
   return { code: error.code, message: error.message };
 }
 
+/** Cost basis (avgEntryPrice * qty) can be 0 for a just-opened, zero-notional edge case — return undefined rather than dividing by zero or fabricating 0%. */
+function unrealizedPlPct(avgEntryPrice: number, qty: number, unrealizedPl: number): number | undefined {
+  const costBasis = Math.abs(avgEntryPrice * qty);
+  if (costBasis === 0) return undefined;
+  return (unrealizedPl / costBasis) * 100;
+}
+
 const MISSING_CREDENTIALS_ERROR: BrokerError = {
   code: "CREDENTIALS_NOT_CONFIGURED",
   message: "ALPACA_PAPER_API_KEY_ID/ALPACA_PAPER_API_SECRET_KEY are not configured in this environment.",
@@ -69,7 +76,19 @@ export function createAlpacaPaperBrokerAdapter(): BrokerAdapter {
       if (!client) return { ok: false, error: MISSING_CREDENTIALS_ERROR };
       const result = await client.getPositions();
       if (!result.ok) return { ok: false, error: toBrokerError(result.error) };
-      return { ok: true, value: result.value.map((p) => ({ symbol: p.symbol, qty: p.qty, side: p.side, marketValue: p.marketValue, unrealizedPl: p.unrealizedPl })) };
+      return {
+        ok: true,
+        value: result.value.map((p) => ({
+          symbol: p.symbol,
+          qty: p.qty,
+          side: p.side,
+          marketValue: p.marketValue,
+          avgEntryPrice: p.avgEntryPrice,
+          currentPrice: p.currentPrice,
+          unrealizedPl: p.unrealizedPl,
+          unrealizedPlPct: unrealizedPlPct(p.avgEntryPrice, p.qty, p.unrealizedPl),
+        })),
+      };
     },
 
     async getOrders(): Promise<Result<BrokerOrderSnapshot[], BrokerError>> {

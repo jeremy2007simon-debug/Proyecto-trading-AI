@@ -2,17 +2,12 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   AlertTriangle,
-  ArrowRightLeft,
   BarChart3,
   Bot,
-  Boxes,
-  FlaskConical,
   Gauge,
-  History,
   LayoutDashboard,
   LineChart,
   ListChecks,
-  PieChart,
   Radar,
   ScrollText,
   Settings,
@@ -46,20 +41,13 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Block 7 — NovaCore Trading Lab control-plane navigation. Deliberately a
- * SEPARATE list from `NAV_ITEMS` (rendered as its own sidebar section by
- * `Sidebar`): these routes read `src/novacore/**`, a distinct control
- * plane from the legacy Consensus/Signal Strategy Manager pages above,
- * and must never be confused with them (see
- * `docs/BLOCK7_NOVACORE_TRADING_LAB.md` "Source of truth").
+ * Block 7 — NovaCore Trading Lab entry point. NovaCore now has its own
+ * app shell and internal navigation (bottom tab bar on mobile, its own
+ * sidebar on desktop — see `src/app/novacore/layout.tsx` and
+ * `src/lib/novacore-navigation.ts`), so the legacy dashboard's sidebar
+ * only needs a single cross-link into it, not a mirror of its internal
+ * routes (see `docs/BLOCK7_NOVACORE_TRADING_LAB.md` "Source of truth").
  */
-export const NOVACORE_NAV_ITEMS: NavItem[] = [
-  { label: "NovaCore", href: "/novacore", icon: Sparkles },
-  { label: "Estrategias", href: "/novacore/strategies", icon: Boxes },
-  { label: "Investigación", href: "/novacore/research", icon: FlaskConical },
-  { label: "Ejecución", href: "/novacore/execution", icon: ArrowRightLeft },
-  { label: "Riesgo y Analítica", href: "/novacore/risk", icon: PieChart },
-  { label: "Actividad", href: "/novacore/activity", icon: History },
-];
+export const NOVACORE_NAV_ITEMS: NavItem[] = [{ label: "NovaCore", href: "/novacore", icon: Sparkles }];
 
 export const KILL_SWITCH_NAV_ICON = AlertTriangle;

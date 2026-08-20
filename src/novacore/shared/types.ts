@@ -37,6 +37,35 @@ export type NovaCoreStrategyStatus =
 export type NovaCoreEnvironment = "RESEARCH" | "PAPER" | "LIVE";
 
 /**
+ * Observability Upgrade — where a piece of data actually came from, so a
+ * reviewer can always answer "is this real right now, or a citation of
+ * something frozen?" without guessing from the number alone.
+ *
+ * - `LIVE`: a read performed during this request (e.g. a broker API call).
+ * - `FORWARD_EVIDENCE`: read from `results/block6/forward/**` — real,
+ *   persisted paper-trading history, but not necessarily fetched this
+ *   second.
+ * - `FROZEN_REPORT`: transcribed from a committed, audited report
+ *   (`docs/BLOCK6_CANDIDATE_VERIFICATION_REPORT.md` etc.) — never
+ *   recomputed.
+ * - `FALLBACK`: the live/primary source was unavailable and a documented,
+ *   clearly-labeled substitute was used instead (e.g. the doc-cited
+ *   status when no live status file exists).
+ * - `UNAVAILABLE`: no source had real data — the caller must render an
+ *   honest empty/unavailable state, never a fabricated value.
+ */
+export type DataProvenance = "LIVE" | "FORWARD_EVIDENCE" | "FROZEN_REPORT" | "FALLBACK" | "UNAVAILABLE";
+
+export interface Provenanced<T> {
+  value: T | undefined;
+  provenance: DataProvenance;
+  /** Human-readable pointer to the exact source — file, doc section, or API. */
+  source: string;
+  /** When the value was actually observed/computed, if known. */
+  asOf?: ISOTimestamp;
+}
+
+/**
  * System/component health — deliberately NOT a measure of strategy
  * performance. A strategy can be losing money and still be HEALTHY (its
  * automation runs correctly, data is fresh, the broker connection works);

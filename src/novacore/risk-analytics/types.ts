@@ -43,15 +43,25 @@ export interface RiskAnalyticsSnapshot {
     | {
         available: true;
         monthsObserved: number;
+        startingEquityUsd: number | undefined;
+        currentEquityUsd: number | undefined;
+        totalReturnPct: number | undefined;
         cagrPct: number | undefined;
         maxDrawdownPct: number;
+        currentDrawdownPct: number | undefined;
+        monthlyReturns: { month: string; returnPct: number }[];
+        winningMonths: number;
+        losingMonths: number;
         excessReturnVsSpyPct: number | undefined;
+        /** Both normalized so the first observed point = 100 — comparable regardless of starting notional. Empty when the SPY benchmark leg couldn't be fetched (still shows the RS3M curve alone). */
+        normalizedCurve: { rs3m: { label: string; value: number }[]; spy: { label: string; value: number }[] };
         disclaimer: string;
       }
     | {
         available: false;
         monthsObserved: number;
         reason: string;
+        emptyStateMessage: string;
       };
 
   costRobustness: {
