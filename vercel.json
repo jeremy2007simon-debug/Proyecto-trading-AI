@@ -1,0 +1,9 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "main": false,
+      "feature/novacore-trading-lab": false,
+      "deploy/novacore-only": true
+    }
+  }
+}
