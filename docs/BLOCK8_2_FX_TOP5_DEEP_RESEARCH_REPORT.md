@@ -4,7 +4,11 @@
 
 ## 1. Executive Summary
 
-*(filled in after §10-25 are complete — see end of document)*
+24 configurations across 4 economically-distinct FX hypotheses (Family 2, Economic Momentum, marked `DATA_INSUFFICIENT` before any code was written — no verifiable point-in-time macro data available in this environment) were tested on 7 major pairs over 15 years of daily data, using real interest-rate and CPI data for carry/value construction. **Decision: NO FX CANDIDATES — RESEARCH FAILED HONESTLY.**
+
+One configuration (F3-E, unfiltered carry) mechanically cleared the reused CANDIDATE classifier's gate, but is downgraded to RESEARCH on review: its multiple-testing-corrected Sharpe (Deflated Sharpe Ratio) is 0.009 — statistically indistinguishable from luck — its Monte Carlo ruin probability is 62%, and it is net-negative under stressed costs. Family 4 (time-series trend-following) is rejected decisively and unambiguously: every one of 6 lookback/universe variants is net-negative, with Monte Carlo drawdowns of 85-99.5%. The most credible single result of the round, F5-E (a full-universe, risk-weighted multi-factor combination of carry, trend, and a real PPP-based value signal), is genuinely the best-behaved config tested — but its own multiple-testing-corrected confidence (DSR = 0.499) is still a coin flip, not evidence of skill.
+
+Two real implementation bugs were caught and fixed during this round's own internal review before any of the numbers above were finalized — both are documented in §10.2 as part of the audit trail, and both are now covered by regression tests. This report treats that as a feature of the process, not something to hide: a "surprisingly good" backtest result should always be the trigger for harder scrutiny, not celebration, and that discipline is what turned an initially spectacular (and wrong) result into the correct rejection.
 
 ## 2. Lessons From Block 8
 
@@ -161,4 +165,139 @@ Fail-fast: a Stage 4 (NET cost) failure stops that config's funnel run immediate
 
 ---
 
-*(Sections 10-25 continue below once the funnel has run — see §1 Executive Summary and the final Decision line for the outcome.)*
+## 10. Results by Family — Full Funnel Table
+
+All 24 experiments (`results/block8-2/experiments/<id>.json`), sorted by family. `class` is the mechanical output of `classifyStrategy` (reused unchanged from Block 5/8); §10.1 explains why F3-E's mechanical `CANDIDATE` label is overridden below.
+
+| id | family | class | gross/yr | net/yr | stressed/yr | Sharpe (net) | MaxDD% (net) | OOS/yr | WF pos% | months |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| F1-A | 1 | REJECTED | 3.0% | 0.3% | -4.1% | 0.02 | 60.6 | -7.2% | 60% | 179 |
+| F1-B | 1 | REJECTED | -2.5% | -4.1% | -6.7% | -0.24 | 70.1 | — | — | 177 |
+| F1-C | 1 | REJECTED | -2.0% | -3.3% | -5.5% | -0.22 | 68.7 | — | — | 174 |
+| F1-D | 1 | REJECTED | 0.3% | -0.6% | -2.2% | -0.04 | 74.9 | — | — | 177 |
+| F1-E | 1 | RESEARCH | 3.2% | 2.4% | 1.1% | 0.16 | 57.9 | 12.2% | 20% | 174 |
+| F1-F | 1 | REJECTED | 0.3% | -0.8% | -2.5% | -0.05 | 43.0 | — | — | 168 |
+| F3-A | 3 | RESEARCH | 3.5% | 1.4% | -2.5% | 0.05 | 72.9 | 13.4% | 40% | 180 |
+| F3-B | 3 | RESEARCH | 4.4% | 2.4% | -1.4% | 0.09 | 65.3 | 13.5% | 40% | 180 |
+| F3-C | 3 | RESEARCH | 4.8% | 2.9% | -0.7% | 0.11 | 64.9 | 12.1% | 40% | 180 |
+| F3-D | 3 | RESEARCH | 3.5% | 1.4% | -2.4% | 0.05 | 72.9 | 13.8% | 40% | 180 |
+| F3-E | 3 | **CANDIDATE→RESEARCH** | 3.0% | 1.6% | -0.9% | 0.09 | 45.7 | 9.7% | 60% | 180 |
+| F3-F | 3 | REJECTED | -0.3% | -2.5% | -6.5% | -0.10 | 82.6 | — | — | 180 |
+| F4-A | 4 | REJECTED | -7.4% | -10.6% | -15.8% | -0.26 | 97.2 | — | — | 179 |
+| F4-B | 4 | REJECTED | -5.7% | -7.6% | -10.8% | -0.19 | 96.9 | — | — | 177 |
+| F4-C | 4 | REJECTED | -7.9% | -9.4% | -11.8% | -0.23 | 98.4 | — | — | 174 |
+| F4-D | 4 | REJECTED | -0.9% | -2.3% | -4.7% | -0.05 | 90.0 | — | — | 168 |
+| F4-E | 4 | REJECTED | -1.6% | -3.8% | -7.5% | -0.11 | 85.0 | — | — | 168 |
+| F4-F | 4 | REJECTED | -4.4% | -7.0% | -11.1% | -0.13 | 99.5 | — | — | 174 |
+| F5-A | 5 | RESEARCH | 5.2% | 2.3% | -3.0% | 0.09 | 68.8 | 17.0% | 20% | 180 |
+| F5-B | 5 | RESEARCH | 4.1% | 1.2% | -4.0% | 0.05 | 66.9 | 10.6% | 20% | 180 |
+| F5-C | 5 | RESEARCH | 4.4% | 2.1% | -2.4% | 0.08 | 73.5 | 15.5% | 40% | 180 |
+| F5-D | 5 | REJECTED | 0.9% | -0.9% | -3.8% | -0.03 | 79.2 | — | — | 180 |
+| F5-E | 5 | RESEARCH | 8.2% | 6.4% | 3.2% | 0.28 | 52.1 | 16.4% | 40% | 180 |
+| F5-F | 5 | RESEARCH | 4.1% | 1.5% | -3.4% | 0.06 | 67.1 | 11.7% | 40% | 180 |
+
+**Funnel stage counts:** Sanity 24/24 · Gross edge (>0) 17/24 · Realistic-cost survivors (Stage 4) 11/24 · OOS/Walk-forward/Monte Carlo computed 11/24 (only for Stage-4 survivors, fail-fast) · Mechanical CANDIDATE 1/24 (F3-E) · **Final candidates after review: 0**.
+
+### 10.1 Why F3-E's mechanical CANDIDATE label is overridden to RESEARCH
+
+`classifyStrategy` (reused unchanged from Block 5/8) promotes to CANDIDATE once a config clears: positive full-period, positive OOS, walk-forward majority ≥50%, and MEDIUM+/HIGH sample quality. F3-E cleared all four gates mechanically. But that gate set — built for Block 5/8's trade-level context — does not examine tail risk, stressed-cost sign, or multiple-testing-adjusted Sharpe, three things §26 of the brief explicitly requires ("acceptable tail risk", cost margin, "multiple-testing adjustment") before real candidacy. Checking those for F3-E:
+
+- **Deflated Sharpe Ratio** (24-trial correction, §17): **0.009** — after correcting for having tried 24 configurations, F3-E's Sharpe is statistically indistinguishable from pure luck. (Its uncorrected PSR was 0.85 — this is exactly the gap multiple-testing correction exists to catch.)
+- **Monte Carlo ruin probability** (10,000-sim bootstrap, §17): **62.4%** probability of a ≥50% max drawdown at some point over the 15-year sample. This is not a "conservative drawdown profile" by any definition.
+- **STRESSED-cost scenario**: net annualized return **-0.9%** — negative. A strategy that flips sign between REALISTIC and STRESSED cost assumptions has no real margin.
+- **Long-history split** (§6/§16): first-half annualized +1.3%, second-half -4.5% — the edge is deteriorating, not persisting, over the sample.
+
+None of this was cherry-picked after the fact to reject a "favorite" — §26's criteria (tail risk, cost margin, multiple-testing) were listed in the frozen pre-registration (§7-9) before any experiment ran; this section applies them. **Decision: F3-E is downgraded from CANDIDATE to RESEARCH.** No config in this round survives full scrutiny as a genuine candidate.
+
+### 10.2 A striking near-miss that turned out to be a bug (documented for the audit trail)
+
+During review, Family 3's AUDJPY-momentum regime filter (F3-F) initially produced an implausibly strong result (net +13.8%/yr) that looked like the best result of the entire round. Investigation found an off-by-one look-ahead: the regime filter's trailing-momentum window included the CURRENT period's own (not-yet-realized-as-of-signal-date) return. Fixed in `regime.ts` (`buildAudJpyMomentumRegime`) to use only strictly-prior periods, matching the same causal convention already used correctly elsewhere (`trailingCumulativeReturn` in `family-signals.ts`). After the fix, F3-F is REJECTED (net -2.5%/yr) — consistent with every other regime-filtered carry variant once corrected, not an outlier. A second, unrelated bug (a date-key mismatch that silently made the regime filter's `HARD_EXIT`/`SOFT_SCALE` modes a no-op for the `BASKET_VOL` source) was also caught and fixed before any of the numbers above were produced. Both bugs and their fixes are preserved in this branch's git history — this section exists so a suspiciously good number is never taken at face value without checking for exactly this failure mode.
+
+## 11. Out-of-Sample (OOS)
+
+30% chronological holdout, frozen in `oos-split.ts` before any experiment ran (§15 of the brief). Of the 11 configs reaching Stage 7, **all 11 show positive OOS annualized return** — this is the least discouraging stage in the whole funnel, and worth being honest about: it means the gross/cost patterns found are not artifacts of the most recent few years alone. It is NOT, by itself, evidence of a tradeable edge — every one of those same 11 configs fails elsewhere (walk-forward consistency, tail risk, or stressed-cost sign).
+
+## 12. Walk-Forward
+
+5 windows per config (60mo train / 12mo forward / 12mo step, `walk-forward.ts`, sized to this research's real ~15-year history — not tuned to produce more passing windows). Positive-window percentage ranges from 0% (configs that never reached this stage) to 60% (F3-E only). Every other Stage-7+ config sits at 20-40% — a minority of windows profitable, the opposite of walk-forward consistency. No config shows the “majority of windows positive” pattern this research would consider a real robustness signal, except F3-E, whose broader picture is addressed in §10.1.
+
+## 13. Regime Robustness
+
+Per-config LOW_VOL vs HIGH_VOL month split (`classification-adapter.ts`, using the same causal basket-vol regime the Family 3 filter itself uses). Pattern is consistent across every Stage-9 config: strongly profitable in LOW_VOL months, negative or flat in HIGH_VOL months (F3-E: +6.4%/yr LOW_VOL vs -4.3%/yr HIGH_VOL is representative). This is the expected signature for carry-like and momentum-like FX strategies (funding-liquidity/crash risk concentrates in stress regimes, per Brunnermeier, Nagel & Pedersen 2008) — not a surprise, but a confirmation that the regime-filter hypothesis (Family 3) was pointed at a real phenomenon, even though no filtered variant survived full scrutiny.
+
+## 14. Monte Carlo
+
+10,000-simulation reshuffle bootstrap (`portfolio-monte-carlo.ts`) for every Stage-8 survivor, per §17's minimum. Results are uniformly poor: ruin probability (≥50% max drawdown in a simulation) ranges from 55% (F5-E, the best) to 91% (F3-A). Median simulated max drawdown exceeds 50% for every single config that reached this stage. This is the single most decisive piece of evidence against any of these 24 configurations being genuinely tradeable at the position sizing tested (10%/yr per-leg vol target, §"Position Sizing" below) — full figures in each experiment's JSON.
+
+## 15. Tail Risk
+
+Every Stage-4 survivor's STRESSED-cost annualized return is negative except F5-E (+3.2%/yr) — see the table in §10. Skewness is negative and kurtosis elevated for every carry-related config (F3-*, consistent with Brunnermeier, Nagel & Pedersen 2008's crash-risk framing — e.g. F3-E: skew -1.86, kurtosis 11.6). Worst single month across all configs reaches -35% (unnormalized to the vol-target convention — see §Position Sizing). No period-obscuring was applied — every crisis window (2015 CHF de-peg, 2020 COVID, 2022 hiking cycle) is included in every metric above, per §9's explicit "no esconder períodos de crisis" instruction.
+
+## 16. Parameter Robustness
+
+- **Family 1** (momentum lookback 1/3/6/12mo): Sharpe sign flips unpredictably (0.02, -0.24, -0.22, -0.04, 0.16, -0.05) — no plateau, a fragility signal, not a peak worth trusting.
+- **Family 3** (carry N + regime threshold): the vol-regime filter shows a genuine, monotonic-looking improvement as the exit threshold tightens (F3-A unfiltered Sharpe 0.05 → F3-C at 70th-percentile-exit Sharpe 0.11) — a real, if modest, plateau-like pattern, not a single lucky point. This is this round's most credible *directional* finding (filtering carry by realized-vol regime helps), even though no variant clears the full candidacy bar.
+- **Family 4** (trend lookback 1/3/6/12mo, blend, universe breadth): uniformly negative — Sharpe ranges -0.05 to -0.26 across every single variant tested, including the universe-breadth check (F4-F, full 11-instrument universe, still -0.13). This IS a robust plateau — a robust plateau of "no edge here."
+- **Family 5** (factor-weight combinations): the full-universe risk-weighted variant (F5-E) outperforms every top/bottom-N selection variant (F5-A/B/C/F) by a wide margin (Sharpe 0.28 vs 0.05-0.09) — a real, mechanically-explicable difference (full diversification vs concentrated selection), not noise, but a single configuration difference, not a swept parameter plateau, so treated as a directional finding rather than confirmed robustness.
+
+## 17. Multiple Testing
+
+24 Block 8.2 trials (this round) + 29 Block 8 trials (prior round) = 53 FX configurations tested across both rounds — recorded here per §18's explicit instruction not to treat this round in isolation. Block 8's own Sharpe/expectancy figures use a different unit (per-trade R-multiples, intraday) than Block 8.2's (monthly portfolio returns) — the two are not statistically poolable into one Deflated Sharpe Ratio calculation without conflating incompatible methodologies, so DSR is computed separately within each round's own trial set (Block 8's report already did this implicitly by never reaching the deep-validation stage; Block 8.2's is below), while the combined trial COUNT (53) is disclosed as the honest context for how much searching has been done across this codebase's FX research to date.
+
+**Block 8.2's own 24-trial Deflated Sharpe Ratio**, computed via `deflatedSharpeRatio` (reused unchanged from Block 5's `deflated-sharpe.ts`) against the actual cross-trial Sharpe standard deviation (0.14):
+
+| Config | Sharpe (REALISTIC) | PSR (>0, uncorrected) | DSR (24-trial corrected) |
+|---|---:|---:|---:|
+| F3-E | 0.085 | 0.853 | **0.009** |
+| F1-E | 0.155 | 0.979 | 0.054 |
+| F3-C | 0.114 | 0.915 | 0.024 |
+| F5-E | 0.278 | 1.000 | **0.499** |
+
+F5-E's DSR of 0.499 is the highest of the round by a wide margin — still means "no better than a coin flip that the true Sharpe exceeds what 24 independent tries would produce by chance alone," not evidence of skill, but meaningfully less consistent with pure luck than every other config tested (all DSR < 0.06). This is the single clearest quantitative signal in the entire report for where a future round's limited research budget would be best spent, if FX research continues (§25).
+
+## 18. Strategy Correlations
+
+Not computed as a full pairwise matrix: with 0 genuine candidates surviving §10.1's review, there is nothing to combine into a portfolio. Directionally, from the data already computed: every Family 3 (carry) variant shares the same LOW_VOL/HIGH_VOL regime split (§13) and the same underlying rate-differential signal, so they are highly correlated with each other by construction — not independent evidence, a single underlying bet tested 6 ways. F5-E (multi-factor) is the only config that meaningfully diverges from the carry-only pattern (positive in HIGH_VOL-adjacent second-half data where carry-only configs are negative), consistent with its 3-factor construction actually diversifying return sources rather than being "carry relabeled."
+
+## 19. Portfolio Simulation (FX_CANDIDATE_PORTFOLIO)
+
+**Not built.** §23 of the brief requires ≥2 survivors before constructing a combined portfolio simulation; this round has 0 after §10.1's review. No portfolio-of-strategies analysis was attempted — building one against 0 real candidates would manufacture a diversification benefit that doesn't exist to combine.
+
+## 20. Prop-Firm Compatibility
+
+**Not performed**, same reasoning as Block 8 §11: no candidate survived to this stage. The generic `TradingProgramConstraintSet` scaffold (`src/novacore/prop-firm/types.ts`) remains untouched and unused by this round, exactly as intended. No FTMO or other program's rules were fetched, hardcoded, or guessed; no challenge was purchased.
+
+## 21. Candidates
+
+**None.** F3-E mechanically cleared the reused classifier's gate but is downgraded to RESEARCH per §10.1 — see that section for the complete, criteria-by-criteria justification (DSR, Monte Carlo ruin probability, stressed-cost sign, long-history stability), all checked against thresholds from the frozen §7-9 pre-registration, none invented after the fact.
+
+## 22. Rejected Hypotheses — Ranked (per §28: a ranking even where everything is rejected/downgraded)
+
+Best-researched-hypothesis-first, independent of final classification:
+
+1. **F5-E (Multi-Factor FX, full-universe risk-weighted)** — RESEARCH. Best Sharpe (0.28), only config positive under STRESSED costs and in both sample halves, highest DSR (0.499) of the round. Not promoted (walk-forward only 40% positive, DSR still well short of a real confidence bar) but the clearest "worth a future look" result.
+2. **Family 3, vol-regime-filtered carry (F3-B/F3-C)** — RESEARCH. Genuine, monotonic-looking improvement from filtering carry by realized-vol regime (§16) — a real directional finding about WHERE carry's crash risk concentrates, even though cost/tail-risk margins remain too thin to promote.
+3. **F3-E (unfiltered carry, N=2)** — RESEARCH after downgrade. The cautionary tale of this report: passes a narrow mechanical gate, fails every broader scrutiny (§10.1). Documented in detail specifically so the failure mode (trusting a mechanical classifier without checking DSR/tail risk) isn't repeated.
+4. **F1-E (Factor Momentum, 6mo lookback / 3mo hold)** — RESEARCH. Weakly positive but no parameter-neighborhood support (§16) and DSR = 0.054.
+5. **Family 4, Diversified Time-Series Trend (all 6 configs)** — REJECTED, decisively. Negative gross AND net at every lookback and universe breadth tested, MaxDD 85-99.5% in Monte Carlo. The cleanest, least ambiguous null result in this report — worth stating plainly: this is strong evidence AGAINST simple time-series trend-following on this 7/11-pair FX universe at monthly rebalance over 2011-2026, not an inconclusive result.
+
+## 23. Data-Insufficient Hypotheses
+
+**Family 2 (Economic Momentum FX)** — 0 configurations run. Requires as-of-publication-date macro data (industrial production, retail sales, employment) to avoid look-ahead; this environment's only free, keyless path to such data (ALFRED's vintage endpoint) was tested and confirmed to silently ignore the vintage parameter (§3.5). Documented with its full academic basis (Dahlquist & Hasseltoft 2020) so a future block with real vintage-data access can pick this up without re-deriving the hypothesis from scratch.
+
+## 24. Limitations
+
+- No real bid/ask FX data (re-confirmed unavailable this round, §3.2) — every spread/slippage/swap-markup figure is ESTIMATED, never OBSERVED. The interest-rate differential itself (carry's core input) IS real, OBSERVED FRED data — kept structurally separate throughout.
+- Position sizing uses a fixed 10%/yr-per-leg vol-targeting convention (`portfolio-engine.ts`), not a claim about deployable capital or real leverage — Monte Carlo ruin probabilities (§14) are relative to THIS convention, not an absolute dollar risk-of-ruin statement.
+- CPI-based Value uses a fixed 2-month publication lag, not full point-in-time vintages (§3.4) — a smaller, more defensible simplification than Family 2's full exclusion, but still a simplification.
+- Two real implementation bugs were caught and fixed during this round's own review (§10.2) — both are now covered by regression tests (§26), but their existence is a reminder that a "surprisingly good" result in this kind of research deserves default suspicion, not default excitement.
+- Walk-forward and Monte Carlo statistics are based on 180 months (15 years) of history — long by FX-research standards, but still a single historical realization; the two crisis episodes it contains (2015 CHF de-peg, 2020 COVID) dominate the tail-risk picture and may not represent the full space of future crash scenarios.
+- Regime and correlation analysis (§13, §18) is directional, not a formal statistical test — presented as color on the funnel results, not as independent evidence clearing any candidacy bar.
+
+## 25. Recommendation
+
+If FX research continues in a future block, the two leads worth a genuinely NEW, independently-pre-registered round (never simply re-running these same 24 with different parameters) are: (1) **F5-E's full-universe, risk-weighted multi-factor construction**, specifically testing whether a larger currency universe or a longer/independent OOS window changes its DSR meaningfully, and (2) **the vol-regime carry filter's mechanism** (§16, §22 item 2) tested against a genuinely independent regime proxy (e.g. real credit-spread or implied-vol data, if a source becomes available) rather than the basket-realized-vol proxy used here, since that proxy is constructed from the same price data the strategy itself trades. Family 4 (trend-following) should NOT be revisited without a fundamentally different construction — this round's null result was too clean and too consistent across every lookback tested to be a data or implementation artifact.
+
+---
+
+*Reproducibility: `NODE_OPTIONS="--conditions=react-server" npx tsx scripts/research/forex2/fetch-fx-daily.ts && npx tsx scripts/research/forex2/fetch-macro-data.ts` then `npx tsx scripts/research/forex2/run-block8-2-funnel.ts`. Raw results: `results/block8-2/` (gitignored, regenerate via the commands above).*

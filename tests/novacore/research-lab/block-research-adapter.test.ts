@@ -4,7 +4,7 @@ import { getResearchProjectById, listResearchProjects } from "@/novacore/researc
 describe("NovaCore Research Lab", () => {
   it("lists all transcribed research projects", () => {
     const projects = listResearchProjects();
-    expect(projects.map((p) => p.id).sort()).toEqual(["ETF_ROTATION_RESEARCH", "FOREX_RESEARCH_V1", "SP500_LEGACY_STRATEGY_RESEARCH"]);
+    expect(projects.map((p) => p.id).sort()).toEqual(["ETF_ROTATION_RESEARCH", "FOREX_RESEARCH_V1", "FX_TOP5_DEEP_RESEARCH", "SP500_LEGACY_STRATEGY_RESEARCH"]);
   });
 
   it("every project's rejected + research + candidates sums to its hypothesesTotal (internal consistency)", () => {
@@ -26,6 +26,14 @@ describe("NovaCore Research Lab", () => {
     expect(project?.hypothesesTotal).toBe(29);
     expect(project?.rejected).toBe(29);
     expect(project?.research).toBe(0);
+    expect(project?.candidates).toBe(0);
+  });
+
+  it("FX_TOP5_DEEP_RESEARCH matches the Block 8.2 report's published funnel result (0 CANDIDATE after review, 11 RESEARCH, 13 REJECTED)", () => {
+    const project = getResearchProjectById("FX_TOP5_DEEP_RESEARCH");
+    expect(project?.hypothesesTotal).toBe(24);
+    expect(project?.rejected).toBe(13);
+    expect(project?.research).toBe(11);
     expect(project?.candidates).toBe(0);
   });
 
