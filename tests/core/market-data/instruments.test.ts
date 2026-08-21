@@ -13,7 +13,7 @@ describe("getInstrumentConfig", () => {
   });
 
   it("returns an explicit error for a market with no instrument config yet, instead of guessing", () => {
-    const result = getInstrumentConfig("FOREX_EURUSD");
+    const result = getInstrumentConfig("GOLD");
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected error result");
     expect(result.error.code).toBe("INSTRUMENT_NOT_CONFIGURED");
@@ -45,7 +45,25 @@ describe("getInstrumentConfig", () => {
     }
   });
 
-  it("INSTRUMENT_CONFIGS contains exactly the markets this block configured — SP500 plus the three research-only markets", () => {
-    expect(Object.keys(INSTRUMENT_CONFIGS).sort()).toEqual(["DOWJONES", "NASDAQ100", "RUSSELL2000", "SP500"]);
+  it("INSTRUMENT_CONFIGS contains exactly the markets configured so far — SP500, the three equity research-only markets, and the four Block 8 FX pairs", () => {
+    expect(Object.keys(INSTRUMENT_CONFIGS).sort()).toEqual([
+      "DOWJONES",
+      "FOREX_AUDUSD",
+      "FOREX_EURUSD",
+      "FOREX_GBPUSD",
+      "FOREX_USDJPY",
+      "NASDAQ100",
+      "RUSSELL2000",
+      "SP500",
+    ]);
+  });
+
+  // Block 8 (Forex Research Lab) — same "configured but not active"
+  // convention as the equity research-only markets above.
+  it("the FX pairs (FOREX_EURUSD/GBPUSD/USDJPY/AUDUSD) are configured but not active", () => {
+    for (const market of ["FOREX_EURUSD", "FOREX_GBPUSD", "FOREX_USDJPY", "FOREX_AUDUSD"] as const) {
+      expect(getInstrumentConfig(market).ok).toBe(true);
+      expect(ACTIVE_MARKETS).not.toContain(market);
+    }
   });
 });

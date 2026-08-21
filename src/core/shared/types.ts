@@ -25,7 +25,15 @@ export type Market =
   // out of `ACTIVE_MARKETS` below, so the live dashboard/production
   // pipeline behavior is unchanged.
   | "RUSSELL2000"
-  | "DOWJONES";
+  | "DOWJONES"
+  // Added in Block 8 (Forex Research Lab) — three more FX spot pairs
+  // alongside the pre-existing `FOREX_EURUSD` placeholder. Research-only:
+  // kept out of `ACTIVE_MARKETS`, same convention as RUSSELL2000/DOWJONES
+  // above. No RS3M/equity code path reads these — see
+  // `docs/BLOCK8_FOREX_RESEARCH_REPORT.md`.
+  | "FOREX_GBPUSD"
+  | "FOREX_USDJPY"
+  | "FOREX_AUDUSD";
 
 export const ACTIVE_MARKETS: readonly Market[] = ["SP500"] as const;
 

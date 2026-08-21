@@ -84,7 +84,11 @@ export type StrategyFamily =
   | "RELATIVE_STRENGTH"
   | "PAIRS_RELATIVE_VALUE"
   | "VOLATILITY_REGIME"
-  | "MULTI_SIGNAL";
+  | "MULTI_SIGNAL"
+  // Added in Block 8 (Forex Research Lab) — two families with no prior
+  // equivalent in the existing union. Purely additive.
+  | "SESSION_BREAKOUT"
+  | "MEAN_REVERSION";
 
 /**
  * Lifecycle status for a strategy in the Strategy Discovery & Validation

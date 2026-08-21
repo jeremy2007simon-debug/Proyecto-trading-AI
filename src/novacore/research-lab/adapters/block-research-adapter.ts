@@ -43,8 +43,32 @@ export const ETF_ROTATION_RESEARCH: ResearchProject = {
   sourceDoc: "docs/BLOCK5_STRATEGY_DISCOVERY_REPORT.md §1-10",
 };
 
+/** Block 8 — the Forex Research Lab's 29-configuration funnel run across EUR/USD, GBP/USD, USD/JPY, AUD/USD. Completely independent of RS3M — no shared code, data, or conclusions. */
+export const FOREX_RESEARCH_V1: ResearchProject = {
+  id: "FOREX_RESEARCH_V1",
+  name: "Forex Research Lab",
+  objective:
+    "Investigate whether a simple, reproducible FX strategy (EUR/USD, GBP/USD, USD/JPY, AUD/USD; 15m/30m/1h/4h) keeps a positive edge after realistic FX transaction costs (spread/slippage/swap), independently of RS3M.",
+  createdAt: "2026-08-21",
+  status: "COMPLETE",
+  hypothesesTotal: 29,
+  rejected: 29,
+  research: 0,
+  candidates: 0,
+  constraints: [
+    "Pre-registered 20-40 experiment budget (29 used), fixed before any result was inspected",
+    "FX-specific pip-based cost model: OPTIMISTIC/REALISTIC/STRESSED spread+slippage+swap scenarios, never zero-cost presented as realistic",
+    "No RS3M code, data, or parameters read, modified, or reused",
+    "5 families: FX Trend/Momentum, FX Pullback in Trend, FX Volatility Breakout, FX Session Breakout, FX Controlled Mean Reversion",
+  ],
+  benchmarks: ["Zero-cost gross edge", "Chronological out-of-sample split", "Walk-forward (1h/4h only — 15m/30m dataset too short)"],
+  notes:
+    "All 29 configurations REJECTED — none survived Stage 3 (realistic FX cost). Closest near-miss: FX Volatility Breakout on AUD/USD 4h (zero-cost expectancyR +0.12, break-even cost ~2.4bps, WEAK cost robustness, only 51 trades) — real gross edge exists but is too thin for realistic retail/ECN spreads and too small a sample to trust. Decision: NO FOREX CANDIDATE — CONTINUE RESEARCH. See docs/BLOCK8_FOREX_RESEARCH_REPORT.md for the full funnel, cost scenarios, and data-quality writeup.",
+  sourceDoc: "docs/BLOCK8_FOREX_RESEARCH_REPORT.md",
+};
+
 export function listResearchProjects(): ResearchProject[] {
-  return [ETF_ROTATION_RESEARCH, SP500_LEGACY_STRATEGY_RESEARCH];
+  return [ETF_ROTATION_RESEARCH, SP500_LEGACY_STRATEGY_RESEARCH, FOREX_RESEARCH_V1];
 }
 
 export function getResearchProjectById(id: string): ResearchProject | undefined {

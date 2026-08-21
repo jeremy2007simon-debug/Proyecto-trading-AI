@@ -1,5 +1,5 @@
 import { computeIndicatorSnapshotSeries } from "@/core/indicators";
-import { createNyseCalendar, getEasternWallClockParts } from "@/core/market-hours/nyse-calendar";
+import { getMarketCalendar } from "@/core/market-hours/calendar-registry";
 import { createRuleBasedRegimeDetector } from "@/core/market-regime/rule-based-regime-detector";
 import type { MarketRegime } from "@/core/market-regime/types";
 import { createPositionSizer } from "@/core/risk-engine/position-sizer";
@@ -27,11 +27,6 @@ import type { IndicatorSnapshot } from "@/core/indicators/types";
 
 /** See the usage site (Block 4.5 performance fix) for the full rationale. */
 const STRATEGY_LOOKBACK_BARS = 1000;
-
-function eastDateKey(instant: Date): string {
-  const parts = getEasternWallClockParts(instant);
-  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
-}
 
 function validateCandles(candles: readonly Candle[]): void {
   if (candles.length < 2) {
@@ -230,7 +225,7 @@ function simulateSingleStrategy(
   validateCandles(candles);
 
   const startedAt = new Date().toISOString();
-  const calendar = createNyseCalendar(config.market);
+  const calendar = getMarketCalendar(config.market);
 
   let indicatorSeries: Map<string, IndicatorSnapshot>;
   let regimeByTimestamp: Map<string, MarketRegime>;
@@ -263,7 +258,7 @@ function simulateSingleStrategy(
 
   for (let i = 0; i < candles.length; i++) {
     const candle = candles[i];
-    const dateKey = eastDateKey(new Date(candle.timestamp));
+    const dateKey = calendar.getTradingDayKey(new Date(candle.timestamp));
     if (dateKey !== dayState.dateKey) {
       dayState = createDayState(dateKey);
       dayStartEquity = equity;

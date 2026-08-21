@@ -85,6 +85,58 @@ export const INSTRUMENT_CONFIGS: Partial<Record<Market, InstrumentConfig>> = {
     contractMultiplier: 1,
     description: "DIA ETF used as a liquid, continuously-tradable proxy for the Dow Jones Industrial Average.",
   },
+  // Added in Block 8 (Forex Research Lab). FX spot pairs have no single
+  // exchange — `exchange: "OTC_SPOT"` and `timezone: "UTC"` are research
+  // placeholders, not a claim of a specific venue. `ticker` is the exact
+  // symbol requested from the data provider used for this research
+  // (Yahoo Finance's unofficial chart API — see
+  // `scripts/research/forex/fetch-fx-candles.ts` and
+  // `docs/BLOCK8_FOREX_RESEARCH_REPORT.md` for the full data-quality
+  // writeup, including the important caveat that this feed is an
+  // indicative aggregator price, NOT a measured bid/ask). None of these
+  // four are in `ACTIVE_MARKETS` — reachable only by code that explicitly
+  // requests them (the Block 8 research scripts), same convention as
+  // RUSSELL2000/DOWJONES above.
+  FOREX_EURUSD: {
+    market: "FOREX_EURUSD",
+    ticker: "EURUSD=X",
+    instrumentType: "SPOT",
+    exchange: "OTC_SPOT",
+    currency: "USD",
+    timezone: "UTC",
+    contractMultiplier: 1,
+    description: "EUR/USD spot forex pair. Quote currency USD, pip size 0.0001.",
+  },
+  FOREX_GBPUSD: {
+    market: "FOREX_GBPUSD",
+    ticker: "GBPUSD=X",
+    instrumentType: "SPOT",
+    exchange: "OTC_SPOT",
+    currency: "USD",
+    timezone: "UTC",
+    contractMultiplier: 1,
+    description: "GBP/USD spot forex pair. Quote currency USD, pip size 0.0001.",
+  },
+  FOREX_USDJPY: {
+    market: "FOREX_USDJPY",
+    ticker: "USDJPY=X",
+    instrumentType: "SPOT",
+    exchange: "OTC_SPOT",
+    currency: "JPY",
+    timezone: "UTC",
+    contractMultiplier: 1,
+    description: "USD/JPY spot forex pair. Quote currency JPY, pip size 0.01 (2 decimal places, not 4).",
+  },
+  FOREX_AUDUSD: {
+    market: "FOREX_AUDUSD",
+    ticker: "AUDUSD=X",
+    instrumentType: "SPOT",
+    exchange: "OTC_SPOT",
+    currency: "USD",
+    timezone: "UTC",
+    contractMultiplier: 1,
+    description: "AUD/USD spot forex pair. Quote currency USD, pip size 0.0001.",
+  },
 };
 
 export function getInstrumentConfig(market: Market): Result<InstrumentConfig, DomainError> {

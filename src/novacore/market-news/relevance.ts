@@ -119,6 +119,9 @@ const MARKET_LABEL: Record<Market, string> = {
   DOWJONES: "the Dow Jones",
   RUSSELL2000: "the Russell 2000",
   FOREX_EURUSD: "EUR/USD",
+  FOREX_GBPUSD: "GBP/USD",
+  FOREX_USDJPY: "USD/JPY",
+  FOREX_AUDUSD: "AUD/USD",
   GOLD: "gold",
   BITCOIN: "Bitcoin",
 };

@@ -310,6 +310,10 @@ export function createNyseCalendar(market: Market = "SP500"): MarketHoursCalenda
       return easternWallTimeToUtc(parts.year, parts.month, parts.day, 9, 30).toISOString();
     },
 
+    getTradingDayKey(instant: Date): string {
+      return dateKey(getEasternParts(instant));
+    },
+
     getStatus(instant: Date): MarketStatus {
       const parts = getEasternParts(instant);
       const tradingDay = isTradingCalendarDay(parts, parts.weekday);
