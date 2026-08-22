@@ -1,0 +1,320 @@
+{
+  "_note": "Broad literature map (Block 9 §3), reviewed BEFORE any Top-5 selection or backtest. Depth varies deliberately: the 8 families named as Priority Research Areas (§7) and the 5 selected families received a full source review (see docs/BLOCK9_STRATEGY2_DISCOVERY_REPORT.md); the remaining letters received a map-depth pass (grade + rationale + why it was or wasn't advanced) sufficient to justify inclusion/exclusion without pretending to a full deep-dive that wasn't done.",
+  "gradeDefinitions": {
+    "A": "Multiple independent studies, long history, different markets, plausible economic explanation.",
+    "B": "Strong evidence with real limitations.",
+    "C": "Mixed evidence, decay, or implementation concerns.",
+    "D": "Weak, mostly anecdotal or data-mined."
+  },
+  "families": [
+    {
+      "letter": "A",
+      "name": "Time-series momentum / trend",
+      "evidenceGrade": "A",
+      "economicRationaleOrigin": "behavioral (underreaction/herding) + institutional (delegated-manager trend chasing)",
+      "crowdingRisk": "HIGH",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "LOW-MEDIUM",
+      "expectedCorrelationWithRs3m": "HIGH",
+      "keyReferences": ["Moskowitz, Ooi & Pedersen (2012), \"Time Series Momentum\", Journal of Financial Economics", "Hurst, Ooi & Pedersen (AQR, 2017), \"A Century of Evidence on Trend-Following Investing\""],
+      "verdict": "MAP ONLY — not advanced. Real, well-documented edge, but structurally close to RS3M's own momentum-like rotation (§6 explicitly penalizes 'RS3M with another lookback'). Block 5's Momentum/Trend family and Block 8.3's Family 4 (Cross-Index Rotation) already tested closely related implementations on this project's own universe and both were rejected or downgraded for exactly this redundancy (0.90-0.95 correlation with RS3M). Re-testing trend/momentum on the same 4-ETF universe would not diversify RS3M."
+    },
+    {
+      "letter": "B",
+      "name": "Cross-sectional momentum",
+      "evidenceGrade": "A",
+      "economicRationaleOrigin": "behavioral (underreaction) + information diffusion",
+      "crowdingRisk": "HIGH",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "MEDIUM",
+      "expectedCorrelationWithRs3m": "HIGH",
+      "keyReferences": ["Jegadeesh & Titman (1993), \"Returns to Buying Winners and Selling Losers\", Journal of Finance", "Asness, Moskowitz & Pedersen (2013), \"Value and Momentum Everywhere\", Journal of Finance"],
+      "verdict": "MAP ONLY — not advanced. RS3M IS a cross-sectional momentum/relative-strength rotation by construction (§0). Testing this family again on the same SPY/QQQ/IWM/DIA universe is definitionally 'RS3M with another ranking' — excluded per §6 without needing a new backtest to know it."
+    },
+    {
+      "letter": "C",
+      "name": "Short-term reversal",
+      "evidenceGrade": "B",
+      "economicRationaleOrigin": "liquidity provision + market microstructure (overreaction to non-fundamental order flow)",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "MEDIUM",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "HIGH",
+      "expectedCorrelationWithRs3m": "LOW",
+      "keyReferences": [
+        "Da, Liu & Schaumburg (2014), \"A Closer Look at the Short-Term Return Reversal\", Management Science",
+        "Lehmann (1990), \"Fads, Martingales, and Market Efficiency\", Quarterly Journal of Economics",
+        "Nagel (2012), \"Evaporating Liquidity\", Review of Financial Studies"
+      ],
+      "verdict": "ADVANCED to Top-5 (#5). Genuinely different time horizon (days, not months) and different mechanism (liquidity/overreaction, not trend-following) from RS3M. Da-Liu-Schaumburg's own finding that costs erode the standard reversal strategy (especially small-cap) is the main falsification risk — this project restricts the test to SPY/QQQ/IWM/DIA (large, liquid, low-spread) specifically to address that concern, at the cost of a likely thinner edge than small-cap studies report."
+    },
+    {
+      "letter": "D",
+      "name": "Overnight / intraday return decomposition",
+      "evidenceGrade": "A",
+      "economicRationaleOrigin": "structural (index-fund/ETF creation flows concentrated near the close) + information diffusion (news arriving overnight) + institutional (overnight risk transfer)",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "LOW-MEDIUM",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "HIGH",
+      "expectedCorrelationWithRs3m": "LOW",
+      "keyReferences": [
+        "Lou, Polk & Skouras (2019), \"A Tug of War: Overnight versus Intraday Expected Returns\", Journal of Financial Economics",
+        "Hendershott, Livdan & Rösch (2020), \"Asset Pricing: A Tale of Night and Day\", Journal of Financial Economics",
+        "Cliff, Cooper & Gulen (2008), \"Return Differences between Trading and Non-Trading Hours\" (working paper)"
+      ],
+      "verdict": "ADVANCED to Top-5 (#1). Strongest, most-replicated, most economically distinct source in this review — see full writeup in the discovery report."
+    },
+    {
+      "letter": "E",
+      "name": "Volatility risk premium",
+      "evidenceGrade": "A",
+      "economicRationaleOrigin": "risk premium (compensation for insuring against variance/crash risk) + behavioral (overpaying for crash insurance)",
+      "crowdingRisk": "MEDIUM-HIGH",
+      "decayRisk": "LOW",
+      "implementationDifficulty": "MEDIUM",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "LOW-MEDIUM",
+      "expectedCorrelationWithRs3m": "MEDIUM",
+      "keyReferences": [
+        "Carr & Wu (2009), \"Variance Risk Premia\", Review of Financial Studies",
+        "Bollerslev, Tauchen & Zhou (2009), \"Expected Stock Returns and Variance Risk Premia\", Review of Financial Studies",
+        "Bondarenko (2014), \"Why Are Put Options So Expensive?\", Quarterly Journal of Finance"
+      ],
+      "verdict": "ADVANCED to Top-5 (#2), gated on defined-risk implementation only — see tail-risk discussion in the discovery report."
+    },
+    {
+      "letter": "F",
+      "name": "Defensive / low-beta / low-volatility",
+      "evidenceGrade": "A",
+      "economicRationaleOrigin": "institutional (leverage-constrained investors bid up high-beta names) + behavioral (lottery preference for high-vol stocks)",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "LOW",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "LOW",
+      "expectedCorrelationWithRs3m": "MEDIUM",
+      "keyReferences": [
+        "Ang, Hodrick, Xing & Zhang (2006), \"The Cross-Section of Volatility and Expected Returns\", Journal of Finance",
+        "Frazzini & Pedersen (2014), \"Betting Against Beta\", Journal of Financial Economics",
+        "Baker, Bradley & Wurgler (2011), \"Benchmarks as Limits to Arbitrage\", Financial Analysts Journal"
+      ],
+      "verdict": "ADVANCED to Top-5 (#4)."
+    },
+    {
+      "letter": "G",
+      "name": "Equity seasonality (general, non turn-of-month)",
+      "evidenceGrade": "C",
+      "economicRationaleOrigin": "institutional (tax-loss selling / window dressing) + behavioral",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "HIGH",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "LOW",
+      "expectedCorrelationWithRs3m": "LOW",
+      "keyReferences": ["Haugen & Jorion (1996), \"The January Effect\", Financial Analysts Journal", "McLean & Pontiff (2016), \"Does Academic Research Destroy Stock Return Predictability?\", Journal of Finance"],
+      "verdict": "MAP ONLY — folded into letter M below (Turn-of-Month is the specific, better-evidenced seasonal effect this project actually tests). Broader calendar effects (January effect, day-of-week, holiday) are graded lower here: McLean & Pontiff's own post-publication decay finding applies most strongly to exactly this category, and most surviving day-of-week/January patterns are now small enough to be cost-negative on liquid large-cap ETFs."
+    },
+    {
+      "letter": "H",
+      "name": "Cross-asset signals (rates, VIX, credit, USD, commodities → equity exposure)",
+      "evidenceGrade": "B",
+      "economicRationaleOrigin": "risk premium (credit/vol markets price systemic risk before equities fully reprice) + information diffusion",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "MEDIUM",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "LOW",
+      "expectedCorrelationWithRs3m": "MEDIUM",
+      "keyReferences": [
+        "Gilchrist & Zakrajšek (2012), \"Credit Spreads and Business Cycle Fluctuations\", American Economic Review",
+        "Johnson (2017), \"Equity Risk Premia and the VIX Term Structure\", working paper (Bauer College of Business / job market paper)"
+      ],
+      "verdict": "MAP ONLY — not advanced this round. Real evidence, but the brief's own instruction (§7.E) to avoid a 40-variable macro model plus the overlap with E (VIX-based) makes this most useful as a future SIMPLE overlay (e.g., a single credit-spread-percentile filter), not a standalone 20-config family this round. Documented for a later, narrower follow-up."
+    },
+    {
+      "letter": "I",
+      "name": "Market breadth",
+      "evidenceGrade": "B",
+      "economicRationaleOrigin": "information diffusion (breadth reveals participation width that price alone does not) + behavioral (narrow rallies mask distribution)",
+      "crowdingRisk": "LOW-MEDIUM",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "MEDIUM",
+      "expectedTurnover": "LOW",
+      "expectedCorrelationWithRs3m": "MEDIUM",
+      "keyReferences": ["Zaremba, Kizys, Aharon & Umar (2021), \"Herding for Profits: Market Breadth and the Cross-Section of Global Equity Returns\", International Review of Financial Analysis"],
+      "verdict": "MAP ONLY — not advanced this round. Zaremba et al. find breadth adds information beyond simple trend/momentum measures, which is a real, citable result — but per this block's own §7.F warning, breadth risks becoming 'just another filter on RS3M' rather than an independent P&L source, and most freely available US breadth series (advancers/decliners, % above 200dma) are index-provider proprietary or require a paid feed for point-in-time accuracy. Flagged for future work, not this round's 20-config budget."
+    },
+    {
+      "letter": "J",
+      "name": "Volatility timing (using realized/implied vol to size or time equity exposure)",
+      "evidenceGrade": "B",
+      "economicRationaleOrigin": "risk premium (vol clustering) + institutional (vol-targeting fund flows)",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "LOW",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "MEDIUM",
+      "expectedCorrelationWithRs3m": "HIGH",
+      "keyReferences": ["Moreira & Muir (2017), \"Volatility-Managed Portfolios\", Journal of Finance"],
+      "verdict": "MAP ONLY — ALREADY TESTED. This is Block 8.3's Family 1 (Volatility-Managed Equity Exposure): DSR up to 1.0 (the round's strongest standalone result) but 0.79-0.82 correlated with RS3M — downgraded to RESEARCH for exactly the diversification reason this block screens on (§6). No new trial needed; re-testing it would burn budget on an already-answered question."
+    },
+    {
+      "letter": "K",
+      "name": "Trend + crisis alpha (diversified managed-futures-style trend across asset classes)",
+      "evidenceGrade": "A",
+      "economicRationaleOrigin": "behavioral/institutional (herding, delegated trend-chasing) — the same root cause as A, applied cross-asset for crisis-period diversification",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "LOW",
+      "implementationDifficulty": "HIGH",
+      "dataQuality": "MEDIUM",
+      "expectedTurnover": "MEDIUM",
+      "expectedCorrelationWithRs3m": "MEDIUM (crisis periods LOW, calm periods overlaps with A)",
+      "keyReferences": [
+        "Hurst, Ooi & Pedersen (AQR, 2017), \"A Century of Evidence on Trend-Following Investing\"",
+        "Man Group (2015+), \"Trend Following: Equity and Bond Crisis Alpha\", Man Institute research"
+      ],
+      "verdict": "MAP ONLY — not advanced. Genuinely strong evidence, but its real diversification value (crisis alpha) comes specifically from cross-asset breadth (bonds, commodities, FX futures) that this project's Alpaca-equity/ETF universe cannot access without a futures broker (§7.H). Implemented equity-only, it degenerates back into family A (already excluded for RS3M redundancy). Correctly belongs under a future FUTURES-INFRASTRUCTURE roadmap item, not this round's equity-only budget."
+    },
+    {
+      "letter": "L",
+      "name": "Gap / overnight effects (opening-auction-specific behavior)",
+      "evidenceGrade": "B",
+      "economicRationaleOrigin": "market microstructure (opening auction price discovery, overnight order imbalance)",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "HIGH",
+      "expectedCorrelationWithRs3m": "LOW",
+      "keyReferences": ["Cliff, Cooper & Gulen (2008), \"Return Differences between Trading and Non-Trading Hours\" (working paper)"],
+      "verdict": "MAP ONLY — folded into D. Gap/opening-auction behavior is the microstructure mechanism proposed to help explain family D's overnight/intraday split, not a separable return source with its own distinct test design; Block 5 already tested a dedicated 'Gap Continuation' variant on the current universe and it was REJECTED (§ETF_ROTATION_RESEARCH notes), so a fixed-gap-level strategy specifically is already known not to work here. D's own pre-registration (below) is the operative test for this mechanism."
+    },
+    {
+      "letter": "M",
+      "name": "Turn-of-month / calendar effects",
+      "evidenceGrade": "B",
+      "economicRationaleOrigin": "institutional (payroll-driven and pension/401(k) rebalancing flows concentrated at month-end/month-start) + structural",
+      "crowdingRisk": "MEDIUM-HIGH",
+      "decayRisk": "HIGH",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "LOW",
+      "expectedCorrelationWithRs3m": "LOW",
+      "keyReferences": [
+        "Lakonishok & Smidt (1988), \"Are Seasonal Anomalies Real? A Ninety-Year Perspective\", Review of Financial Studies",
+        "McConnell & Xu (2008), \"Equity Returns at the Turn of the Month\", Financial Analysts Journal",
+        "McLean & Pontiff (2016), \"Does Academic Research Destroy Stock Return Predictability?\", Journal of Finance"
+      ],
+      "verdict": "ADVANCED to Top-5 (#3), explicitly flagged HIGH decay risk per its own literature — see falsification design in the discovery report."
+    },
+    {
+      "letter": "N",
+      "name": "Earnings / post-earnings-announcement drift (PEAD)",
+      "evidenceGrade": "A (historical) / C (current, given documented decay)",
+      "economicRationaleOrigin": "behavioral (underreaction to earnings surprise) + institutional (arbitrage now faster, per §27's decay questions)",
+      "crowdingRisk": "HIGH",
+      "decayRisk": "HIGH",
+      "implementationDifficulty": "HIGH",
+      "dataQuality": "LOW (for this project's free-data constraint)",
+      "expectedTurnover": "MEDIUM",
+      "expectedCorrelationWithRs3m": "LOW",
+      "keyReferences": [
+        "Bernard & Thomas (1989), \"Post-Earnings-Announcement Drift\", Journal of Accounting Research",
+        "Fink (2020), \"A Review of the Post-Earnings-Announcement Drift\", Borsa Istanbul Review / working paper survey"
+      ],
+      "verdict": "MAP ONLY — not advanced. Fink's own 2020 survey and the broader literature agree magnitude has shrunk materially since Bernard & Thomas as institutional participation increased (§27's decay question directly applies). More decisively for this project: PEAD requires a broad universe of individual stocks with point-in-time consensus-estimate data to avoid look-ahead — this project's current data sources (Yahoo, FRED) do not provide free, reliable, point-in-time analyst-estimate history, so this is DATA-classified UNAVAILABLE under this block's own no-fabrication rule (§12), not merely deprioritized."
+    },
+    {
+      "letter": "O",
+      "name": "Macro / rates conditioning",
+      "evidenceGrade": "B",
+      "economicRationaleOrigin": "risk premium (rate regime changes discount-rate the whole equity complex) + institutional",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "MEDIUM",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "LOW",
+      "expectedCorrelationWithRs3m": "MEDIUM",
+      "keyReferences": ["Gilchrist & Zakrajšek (2012), \"Credit Spreads and Business Cycle Fluctuations\", American Economic Review"],
+      "verdict": "MAP ONLY — merged with H above for this review (same data sources, same 40-variable-model risk the brief warns against). Not advanced this round."
+    },
+    {
+      "letter": "P",
+      "name": "Dispersion (index vol vs. constituent vol relative value)",
+      "evidenceGrade": "C",
+      "economicRationaleOrigin": "risk premium (implied correlation is itself priced) + institutional (index-option demand from structured products)",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "HIGH",
+      "dataQuality": "LOW",
+      "expectedTurnover": "MEDIUM",
+      "expectedCorrelationWithRs3m": "LOW",
+      "keyReferences": ["Driessen, Maenhout & Vilkov (2009), \"The Price of Correlation Risk\", Journal of Finance"],
+      "verdict": "MAP ONLY — not advanced. Requires simultaneous multi-name options positions (index + constituents) — a materially larger infrastructure and margin lift than single-name/single-index options, mostly practitioner- rather than academically-documented at retail scale, and not implementable on Alpaca today (single-underlying options only, no basket/correlation products). RESEARCH_ONLY, excluded for this round's scope."
+    },
+    {
+      "letter": "Q",
+      "name": "Quality / value / momentum factors (standalone, beyond momentum already excluded)",
+      "evidenceGrade": "A",
+      "economicRationaleOrigin": "risk premium + behavioral (mispricing of quality/value characteristics)",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "LOW-MEDIUM",
+      "implementationDifficulty": "LOW",
+      "dataQuality": "HIGH",
+      "expectedTurnover": "LOW",
+      "expectedCorrelationWithRs3m": "MEDIUM",
+      "keyReferences": ["Fama & French (1992/2015), \"The Cross-Section of Expected Stock Returns\" / \"A Five-Factor Asset Pricing Model\", Journal of Finance / Journal of Financial Economics", "Novy-Marx (2013), \"The Other Side of Value: The Gross Profitability Premium\", Journal of Financial Economics"],
+      "verdict": "MAP ONLY — largely subsumed by F (defensive/low-vol, which can be implemented via a quality/low-vol ETF such as USMV/QUAL as the execution vehicle). Standalone value/quality investing on this project's 4-ETF universe isn't meaningful (SPY/QQQ/IWM/DIA aren't individually 'value' or 'quality' names); a genuine factor-ETF rotation would need its own independence screen against RS3M and F before being worth a dedicated round. Not advanced this block."
+    },
+    {
+      "letter": "R",
+      "name": "Options-implied information (skew, put-call ratio as sentiment/positioning signals)",
+      "evidenceGrade": "B",
+      "economicRationaleOrigin": "information diffusion (informed traders often transact in options first) + behavioral (sentiment reflected in skew)",
+      "crowdingRisk": "MEDIUM",
+      "decayRisk": "MEDIUM",
+      "implementationDifficulty": "MEDIUM",
+      "dataQuality": "PARTIAL (needs options-chain snapshots, not just level data)",
+      "expectedTurnover": "MEDIUM",
+      "expectedCorrelationWithRs3m": "MEDIUM",
+      "keyReferences": ["Bali & Hovakimian (2009), \"Volatility Spreads and Expected Stock Returns\", Management Science"],
+      "verdict": "MAP ONLY — not advanced as a standalone family this round; treated as a candidate SIGNAL ENHANCEMENT for E (volatility risk premium) in later rounds, not a separate 20-config budget item."
+    },
+    {
+      "letter": "S",
+      "name": "Futures-based index strategies (ES/NQ/RTY/YM structural advantages)",
+      "evidenceGrade": "A (for the underlying access/structural benefits)",
+      "economicRationaleOrigin": "structural (24h liquidity, capital efficiency, no ETF-creation friction)",
+      "crowdingRisk": "LOW-MEDIUM",
+      "decayRisk": "LOW",
+      "implementationDifficulty": "HIGH",
+      "dataQuality": "MEDIUM (roll-adjusted continuous series needed)",
+      "expectedTurnover": "MEDIUM",
+      "expectedCorrelationWithRs3m": "HIGH (same underlying indices, just a different wrapper)",
+      "keyReferences": ["CME Group, official E-mini/Micro E-mini index futures contract specifications (exchange documentation, not academic)"],
+      "verdict": "MAP ONLY — RESEARCH ONLY per §7.H's own instruction. Not a distinct return source (it trades the SAME underlying indices as RS3M/other families, just via a leveraged, margined, 24h-accessible instrument) — its value would be EXECUTION improvement for an already-selected family (e.g., running D's overnight strategy via ES instead of SPY to avoid pattern-day-trading/margin constraints), not a Top-5 slot of its own. Alpaca does not support futures; a futures broker is a prerequisite documented here, not built."
+    },
+    {
+      "letter": "T",
+      "name": "Other academically supported systematic anomalies",
+      "evidenceGrade": "N/A",
+      "economicRationaleOrigin": "n/a",
+      "crowdingRisk": "n/a",
+      "decayRisk": "n/a",
+      "implementationDifficulty": "n/a",
+      "dataQuality": "n/a",
+      "expectedTurnover": "n/a",
+      "expectedCorrelationWithRs3m": "n/a",
+      "keyReferences": [],
+      "verdict": "No additional economically-distinct, evidence-backed family surfaced beyond A-S in this review. Per this block's own §17, ML/deep-learning/LLM/RL-discovered anomalies were explicitly excluded from this round's search (they may be investigated separately, later, under their own falsification-first mandate) — this is a deliberate scope boundary, not a finding that none exist."
+    }
+  ]
+}

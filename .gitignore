@@ -49,7 +49,17 @@ yarn-error.log*
 # Block 5 Strategy Discovery & Validation Engine raw output
 # (scripts/research/**) — large, machine-generated research artifacts;
 # docs/BLOCK5_STRATEGY_DISCOVERY_REPORT.md (built from it) is what gets committed.
-/results/
+#
+# Exception: Block 9 Strategy #2 Discovery literature/evidence artifacts
+# (/results/block9/) are hand-authored pre-registration records (literature
+# map, evidence ranking, cumulative trial ledger, data feasibility) — not
+# machine-generated backtest output from a script run — so unlike other
+# /results/ subdirectories they are committed alongside the block's docs.
+# (Ignoring `/results/*` rather than `/results/` is required for the
+# `!/results/block9/` negation below to actually re-include it — git does
+# not descend into an excluded directory to evaluate negation patterns.)
+/results/*
+!/results/block9/
 
 # typescript
 *.tsbuildinfo

@@ -1,0 +1,54 @@
+{
+  "_note": "Selection scoring (Block 9 §11), weights fixed BEFORE scoring and not revisited after seeing which family won. Scores are this project's own qualitative-to-0-10 judgment calls, disclosed as such — not an external benchmark, and not a substitute for the actual pre-registered backtest that would follow a review of this ranking.",
+  "weights": {
+    "academicEvidence": 20,
+    "economicRationale": 15,
+    "dataQuality": 15,
+    "executionRealism": 10,
+    "costRobustness": 10,
+    "rs3mDiversification": 15,
+    "parameterSimplicity": 10,
+    "tailRiskProfile": 5,
+    "total": 100
+  },
+  "weightJustification": "Adopted the brief's own example weights (§11) unchanged. Academic evidence + economic rationale + data quality (50 combined) dominate deliberately, consistent with this project's established culture (Blocks 4/4.5/5/8/8.2/8.3/8.4) of rejecting anything that can't survive independent scrutiny before it can survive a backtest. RS3M diversification (15) is weighted above parameter simplicity and tail-risk SCORE specifically because tail risk is handled as a hard GATE (see below), not only a scoring input — a family that fails the gate is excluded regardless of its total score, so its 5-point weight in the additive score is intentionally small.",
+  "tailRiskGate": "Per §16, no family advances on score alone if it relies on hidden short-vol/leverage/negative-skew exposure without a defined-risk structure. Family E (Volatility Risk Premium) is the only Top-5 entry that would fail this gate in its NAIVE form (unhedged short volatility) — it only clears the gate because its pre-registration (see docs/BLOCK9_STRATEGY2_PREREGISTRATION.md) mandates a defined-risk implementation (put spread / covered short-vol-ETP position with a hard stop) as a condition of testing, not an optional refinement.",
+  "candidates": [
+    {
+      "rank": 1,
+      "family": "D — Overnight / Intraday Return Decomposition",
+      "scores": { "academicEvidence": 19, "economicRationale": 14, "dataQuality": 15, "executionRealism": 9, "costRobustness": 7, "rs3mDiversification": 14, "parameterSimplicity": 9, "tailRiskProfile": 4 },
+      "total": 91
+    },
+    {
+      "rank": 2,
+      "family": "E — Volatility Risk Premium",
+      "scores": { "academicEvidence": 18, "economicRationale": 14, "dataQuality": 12, "executionRealism": 6, "costRobustness": 6, "rs3mDiversification": 12, "parameterSimplicity": 6, "tailRiskProfile": 2 },
+      "total": 76
+    },
+    {
+      "rank": 3,
+      "family": "M — Turn-of-Month / Calendar Seasonality",
+      "scores": { "academicEvidence": 14, "economicRationale": 12, "dataQuality": 15, "executionRealism": 10, "costRobustness": 9, "rs3mDiversification": 14, "parameterSimplicity": 10, "tailRiskProfile": 5 },
+      "total": 89
+    },
+    {
+      "rank": 4,
+      "family": "F — Defensive / Low-Volatility Equity",
+      "scores": { "academicEvidence": 18, "economicRationale": 13, "dataQuality": 15, "executionRealism": 10, "costRobustness": 9, "rs3mDiversification": 9, "parameterSimplicity": 9, "tailRiskProfile": 5 },
+      "total": 88
+    },
+    {
+      "rank": 5,
+      "family": "C — Short-Term Reversal (SPY/QQQ/IWM/DIA only)",
+      "scores": { "academicEvidence": 15, "economicRationale": 12, "dataQuality": 14, "executionRealism": 7, "costRobustness": 5, "rs3mDiversification": 14, "parameterSimplicity": 8, "tailRiskProfile": 4 },
+      "total": 79
+    }
+  ],
+  "rankingCaveat": "M (89) and F (88) score close behind D (91), and both narrowly ahead of C and E on a total-points basis; the published Top-5 order additionally weighs M's disclosed HIGH decay risk and E's tail-risk gate qualitatively, which the additive score does not fully capture — see the discovery report's per-family write-up for the qualitative tie-breakers. All five are being pre-registered together in this round regardless of internal order; the ranking is for prioritization within the 20-configuration budget (§19), not a cutoff that drops #4/#5.",
+  "notAdvancedForReference": [
+    { "family": "J — Volatility Timing", "reasonExcluded": "Already tested as Block 8.3 Family 1; RESEARCH tier, 0.79-0.82 correlated with RS3M. Re-testing would burn budget on an answered question.", "wouldScoreIfTested": "~70 (high academic evidence/data quality, but low RS3M-diversification score caps it)" },
+    { "family": "I — Market Breadth", "reasonExcluded": "Real evidence (Zaremba et al. 2021) but risks becoming a retrospective RS3M filter (§7.F) and lacks a free, point-in-time-clean US breadth data source.", "wouldScoreIfTested": "~68" },
+    { "family": "H/O — Cross-Asset / Macro Conditioning", "reasonExcluded": "Real evidence but the brief itself (§7.E) warns against a many-variable macro model; better suited as a future single-signal overlay than a 20-config family.", "wouldScoreIfTested": "~65" }
+  ]
+}

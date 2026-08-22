@@ -1,0 +1,63 @@
+{
+  "_note": "Data feasibility classification (Block 9 §12) for the Top-5 families plus notable excluded families, using only sources this project has already confirmed reachable in prior blocks (Yahoo Finance, FRED, Alpaca) or newly confirmed via this block's own external research (CBOE's public VIX history CDN). No credentials invented, no scraping proposed that would violate terms.",
+  "classifications": { "READY": "Data confirmed reachable and sufficient today.", "PARTIAL": "Some data reachable; a real gap remains (coverage, point-in-time correctness, or resolution).", "UNAVAILABLE": "No legitimate free/already-available source found." },
+  "top5": [
+    {
+      "family": "D — Overnight / Intraday Return Decomposition",
+      "classification": "READY",
+      "sources": ["Alpaca Market Data (sip feed, daily OHLC — already this project's primary source since Block 4)", "Yahoo Finance (fallback, already used in Blocks 8/8.2/8.3)"],
+      "notes": "Overnight return = today's open / yesterday's close - 1; intraday return = today's close / today's open - 1. Both fields already exist in every OHLC bar this project already fetches — no new data source needed at all."
+    },
+    {
+      "family": "E — Volatility Risk Premium",
+      "classification": "READY",
+      "sources": [
+        "FRED VIXCLS series (CBOE Volatility Index, free, keyless, from 1990-01-02) — confirmed via this block's research",
+        "CBOE's own public VIX_History.csv (cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv) as a second, independent source for cross-checking FRED",
+        "Alpaca Options Data API and Alpaca options order routing (single- and multi-leg, Paper enabled by default) — confirmed via this block's research to support the defined-risk structures (put spreads / covered short-vol) this family's pre-registration requires",
+        "Realized volatility computed in-house from existing SPY daily bars (already available)"
+      ],
+      "notes": "Two viable, Alpaca-native execution paths: (a) exchange-traded short-vol/long-vol ETPs (e.g., SVXY/VXX) traded as ordinary equities, or (b) SPY options spreads via Alpaca's multi-leg options support. Both are READY without a new broker. A raw options-chain history for backtesting will need Alpaca's Options Data API or a vendor snapshot — flagged PARTIAL only for the historical-backtest-quality options chain, not for live/paper execution."
+    },
+    {
+      "family": "M — Turn-of-Month / Calendar Seasonality",
+      "classification": "READY",
+      "sources": ["Alpaca / Yahoo daily OHLC (already available) — the signal is purely calendar-date-based, requires only a trading-day calendar, which this project's NYSE-calendar-aware scheduler (Block 6) already implements."],
+      "notes": "No new data source at all — reuses Block 6's own NYSE calendar utility read-only."
+    },
+    {
+      "family": "F — Defensive / Low-Volatility Equity",
+      "classification": "READY",
+      "sources": ["Alpaca / Yahoo daily OHLC for SPY/QQQ/IWM/DIA (in-house realized-vol/beta construction) and, if a broader universe is later wanted, publicly listed factor ETFs (USMV, SPLV, QUAL) tradeable through Alpaca like any equity."],
+      "notes": "In-house low-vol/low-beta ranking over the existing 4-ETF universe is READY today. Expanding to a broader stock universe (for a 'real' cross-sectional low-vol strategy rather than a 4-ETF proxy) would need a wider point-in-time price history — not required for this round's pre-registered design (§ below), which stays within the existing universe."
+    },
+    {
+      "family": "C — Short-Term Reversal",
+      "classification": "READY",
+      "sources": ["Alpaca / Yahoo daily OHLC for SPY/QQQ/IWM/DIA — same data this project already has for every other family."],
+      "notes": "No new source needed."
+    }
+  ],
+  "notableExclusionsForReference": [
+    {
+      "family": "N — Post-Earnings-Announcement Drift",
+      "classification": "UNAVAILABLE",
+      "reason": "Requires a point-in-time consensus-estimate/earnings-surprise history across a broad stock universe to avoid look-ahead. No free, reliable, point-in-time source was found (Yahoo's current-day earnings data is not vintage-safe; SEC EDGAR provides raw filings but not analyst consensus). This is the same class of limitation Block 8.2 already documented for Family 2 (Economic Momentum FX) and resolved the same way: DATA_INSUFFICIENT, not fabricated."
+    },
+    {
+      "family": "I — Market Breadth",
+      "classification": "PARTIAL",
+      "reason": "Advance/decline and %-above-moving-average series for the full NYSE/Nasdaq universe are typically index-provider proprietary (S&P, Nasdaq) or paywalled (Barchart, WSJ Market Data). A narrower proxy (e.g., breadth across only this project's own 4-ETF universe) is technically READY but would not be a faithful test of the published research, which uses full-market breadth."
+    },
+    {
+      "family": "H/O — Cross-Asset Macro Conditioning",
+      "classification": "READY (for a narrow single-signal version)",
+      "reason": "FRED provides Treasury yields, credit spreads (BAA10Y, etc.), and USD indices free and keyless — the same source class already used in Block 8.2 for carry/value construction. Feasible if scoped to 1-2 signals; not pursued this round per the many-variable-model warning in §7.E."
+    },
+    {
+      "family": "S — Futures-Based Index Strategies",
+      "classification": "UNAVAILABLE (for this project's current broker)",
+      "reason": "Alpaca does not offer futures trading. A futures-capable broker (e.g., a CME FCM) would be required — documented per §7.H's explicit instruction not to discard the idea outright, but not implementable without new broker infrastructure this block does not build."
+    }
+  ]
+}

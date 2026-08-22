@@ -1,0 +1,92 @@
+{
+  "_note": "Hand-authored reconciliation of this project's cumulative research trial count, committed per Block 9 §9/§28. Not machine-generated. Every row cites the frozen report and the adapter constant (`src/novacore/research-lab/adapters/block-research-adapter.ts`) its count is transcribed from — no number here is newly computed or backfilled to make a total look better or worse than what those blocks already reported.",
+  "asOf": "2026-08-22",
+  "priorCumulativeTotalUsedInBlock8_4": {
+    "value": "≥154",
+    "source": "docs/BLOCK8_4_R3B_INDEPENDENT_VERIFICATION_REPORT.md §21",
+    "characterization": "Block 8.4's own conservative floor, itself flagged there as reusing a 24-trial-derived Sharpe-stdev proxy across the full pool (a disclosed simplification, not a rigorous re-derivation). This ledger does not revise that figure — Block 9 policy (§9) is to never reduce the pool to improve a future DSR, so ≥154 is carried forward as the floor for any future Strategy #2 statistical test, not recomputed downward."
+  },
+  "reconciliation": [
+    {
+      "block": "Block 4",
+      "family": "5 original Strategy Manager strategies (Trend Following, Breakout, Mean Reversion, Opening Range Breakout, VWAP) on SPY, 2yr",
+      "configurationsCounted": 5,
+      "result": "0/5 net-positive after realistic cost",
+      "candidateOutcome": "REJECTED (all 5)",
+      "sourceDoc": "docs/BLOCK4_BACKTESTING_REPORT.md §15",
+      "adapterConstant": "SP500_LEGACY_STRATEGY_RESEARCH (partial — combined with Block 4.5 below)"
+    },
+    {
+      "block": "Block 4.5",
+      "family": "Deep validation of the 2 Block-4 survivors with any positive gross edge (Mean Reversion, Opening Range Breakout) across parameter/timeframe/asset/cost-scenario combinations",
+      "configurationsCounted": "42+",
+      "result": "Every combination negative in full-period, validation, and OOS windows",
+      "candidateOutcome": "REJECTED (both families, all combinations) — \"NO VALID STRATEGY FOUND\"",
+      "sourceDoc": "docs/BLOCK4_5_STRATEGY_RESEARCH_REPORT.md §15",
+      "adapterConstant": "SP500_LEGACY_STRATEGY_RESEARCH (notes: \"42+ parameter/timeframe/asset combinations\")",
+      "limitation": "The exact combination count is reported in the source doc as an open-ended floor (\"42+\"), not a single fixed integer — carried forward here unchanged, not rounded up or down."
+    },
+    {
+      "block": "Block 5",
+      "family": "8-family ETF rotation discovery (Momentum/Trend, Pullback, Volatility Breakout, Gap/Overnight, Intraday Seasonality, Volatility Regime, Pairs, Relative Strength) on SPY/QQQ/IWM/DIA",
+      "configurationsCounted": 24,
+      "result": "22 REJECTED, 1 RESEARCH (RS 6mo lookback), 1 CANDIDATE (RS 3mo lookback — became RS3M_CANDIDATE_V1)",
+      "candidateOutcome": "1 CANDIDATE promoted to Block 6",
+      "sourceDoc": "docs/BLOCK5_STRATEGY_DISCOVERY_REPORT.md §4",
+      "adapterConstant": "ETF_ROTATION_RESEARCH"
+    },
+    {
+      "block": "Block 8",
+      "family": "5-family intraday FX research (Trend/Momentum, Pullback in Trend, Volatility Breakout, Session Breakout, Controlled Mean Reversion) on EUR/USD, GBP/USD, USD/JPY, AUD/USD, 15m-4h",
+      "configurationsCounted": 29,
+      "result": "29/29 REJECTED at realistic cost (Stage 3)",
+      "candidateOutcome": "0 candidates — NO FOREX CANDIDATE",
+      "sourceDoc": "docs/BLOCK8_FOREX_RESEARCH_REPORT.md",
+      "adapterConstant": "FOREX_RESEARCH_V1"
+    },
+    {
+      "block": "Block 8.2",
+      "family": "FX Top-5 deep research (Factor/Regime Momentum, Economic Momentum [DATA_INSUFFICIENT, 0 run], Carry+Regime Filter, Diversified Trend, Multi-Factor) on 7 major pairs, daily, 15yr",
+      "configurationsCounted": 24,
+      "result": "13 REJECTED, 11 RESEARCH (incl. F3-E and F5-E, both downgraded from a mechanical CANDIDATE on independent review), 0 CANDIDATE",
+      "candidateOutcome": "0 candidates — NO FX CANDIDATES, RESEARCH FAILED HONESTLY",
+      "sourceDoc": "docs/BLOCK8_2_FX_TOP5_DEEP_RESEARCH_REPORT.md",
+      "adapterConstant": "FX_TOP5_DEEP_RESEARCH"
+    },
+    {
+      "block": "Block 8.3",
+      "family": "US-Index Top-5 deep research (Volatility-Managed Exposure, Intraday Momentum [DATA_INSUFFICIENT], Regime-Dependent Trend/Pullback, Cross-Index Rotation, Hybrid Momentum-Contrarian) on SPY/QQQ/IWM/DIA",
+      "configurationsCounted": 30,
+      "result": "7 REJECTED/DATA_INSUFFICIENT, 22 RESEARCH (incl. Families 1, 4, 5 — each downgraded from a mechanical CANDIDATE on independent review), 1 CANDIDATE (R3-B, Family 3)",
+      "candidateOutcome": "1 CANDIDATE (R3-B) forwarded to Block 8.4 independent verification",
+      "sourceDoc": "docs/BLOCK8_3_US_INDEX_TOP5_DEEP_RESEARCH_REPORT.md",
+      "adapterConstant": "US_INDEX_TOP5_DEEP_RESEARCH"
+    },
+    {
+      "block": "Block 8.4",
+      "family": "R3-B independent verification (falsification audit, not new strategy discovery — no new candidate configurations searched or fit)",
+      "configurationsCounted": 0,
+      "note": "Adversarial re-derivation, sensitivity sweeps, and the multi-testing correction itself (which is what established the ≥154 figure) — not additional discovery trials against a search space, so not added as new trials here. Regime-type and continuous-parameter perturbations reused Block 8.3's own already-computed R3-A/C/D numbers where possible rather than fabricating new runs.",
+      "result": "R3-B REJECTED (DSR 0.96 → 0.23 under the ≥154-trial pool)",
+      "candidateOutcome": "REJECTED — do not promote, do not revive",
+      "sourceDoc": "docs/BLOCK8_4_R3B_INDEPENDENT_VERIFICATION_REPORT.md",
+      "adapterConstant": "R3B_VERIFICATION"
+    },
+    {
+      "block": "Block 9 (this block, Phase A)",
+      "family": "Strategy #2 discovery — literature review, evidence grading, Top-5 selection, pre-registration",
+      "configurationsCounted": 0,
+      "result": "No backtests executed. Per this block's own explicit STOP instruction (§8, §19, §29), zero new configurations were run against price data.",
+      "candidateOutcome": "N/A — pre-registration only, deep backtest deliberately deferred pending review",
+      "sourceDoc": "docs/BLOCK9_STRATEGY2_DISCOVERY_REPORT.md, docs/BLOCK9_STRATEGY2_PREREGISTRATION.md"
+    }
+  ],
+  "reconciledSum": {
+    "arithmetic": "5 + 42 + 24 + 29 + 24 + 30 = 154",
+    "matchesBlock8_4Floor": true,
+    "interpretation": "The ≥154 figure Block 8.4 used for R3-B's cumulative DSR is fully reconcilable, block-by-block, against this project's own frozen reports and adapter constants — it is not an unexplained or asserted number. The '42+' term for Block 4.5 means the true total could be modestly higher; this ledger treats 154 as a floor, consistent with Block 8.4's own framing and Block 9's explicit instruction not to shrink the pool."
+  },
+  "newBacktestsThisBlock": 0,
+  "cumulativeTotalCarriedForward": "≥154 (unchanged — no new trials run in Block 9 Phase A)",
+  "policy": "Any future deep-backtest phase for Strategy #2 candidates (a later, separate block, explicitly NOT this one) must add its own configuration count on top of this ≥154 floor before computing DSR/PSR for any new candidate — never reset to a smaller pool."
+}

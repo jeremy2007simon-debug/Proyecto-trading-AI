@@ -2,6 +2,13 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatTile } from "@/components/dashboard/StatTile";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { FX_TOP5_FAMILY_SUMMARIES, R3B_VERIFICATION, US_INDEX_TOP5_FAMILY_SUMMARIES, listResearchProjects } from "@/novacore/research-lab/adapters/block-research-adapter";
+import { CUMULATIVE_TRIAL_LEDGER_SUMMARY, LITERATURE_FAMILIES_REVIEWED_COUNT, STRATEGY2_TOP5_FAMILIES } from "@/novacore/research-lab/adapters/block9-strategy2-discovery-adapter";
+
+const DATA_FEASIBILITY_CLASS: Record<string, string> = {
+  READY: "text-buy",
+  PARTIAL: "text-wait",
+  UNAVAILABLE: "text-sell",
+};
 
 const CANDIDATE_STATUS_CLASS: Record<string, string> = {
   REJECTED: "text-sell",
@@ -156,6 +163,54 @@ export default function NovaCoreResearchPage() {
             <p className="mt-3 text-[11px] text-muted-foreground">Fuente: {R3B_VERIFICATION.sourceDoc}</p>
           </CardBody>
         </Card>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Strategy #2 Discovery — Literature Review &amp; Pre-Registration (Block 9)</h2>
+        <div className="mb-4 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3 text-xs text-accent">
+          <strong>Solo literatura, cero backtests.</strong> Ninguna de las 5 familias de abajo tiene un resultado de backtest — es una revisión de evidencia externa y una pre-registración congelada
+          (<code>docs/BLOCK9_STRATEGY2_PREREGISTRATION.md</code>), a la espera de revisión antes de ejecutar el primer experimento. R3-B sigue REJECTED y no fue reutilizado en ninguna familia.
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label="Familias revisadas (A-T)" value={LITERATURE_FAMILIES_REVIEWED_COUNT} />
+          <StatTile label="Top-5 seleccionadas" value={STRATEGY2_TOP5_FAMILIES.length} />
+          <StatTile label="Trials acumulados (piso)" value={CUMULATIVE_TRIAL_LEDGER_SUMMARY.priorCumulativeFloor} />
+          <StatTile label="Backtests nuevos este bloque" value={CUMULATIVE_TRIAL_LEDGER_SUMMARY.newTrialsThisBlock} />
+        </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Reconciliación: {CUMULATIVE_TRIAL_LEDGER_SUMMARY.reconciledArithmetic}. {CUMULATIVE_TRIAL_LEDGER_SUMMARY.policy}
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {STRATEGY2_TOP5_FAMILIES.map((fam) => (
+            <Card key={fam.letter}>
+              <CardHeader title={`#${fam.rank} — ${fam.letter}: ${fam.name}`} description={`Evidence grade ${fam.evidenceGrade} · Score ${fam.score}/100`} />
+              <CardBody className="p-4">
+                <div className="mb-2 flex flex-wrap gap-2">
+                  <span className={`rounded-full border border-border-subtle px-2 py-0.5 text-[11px] font-medium ${DATA_FEASIBILITY_CLASS[fam.dataFeasibility]}`}>{fam.dataFeasibility}</span>
+                  <span className="rounded-full border border-border-subtle px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{fam.executionFeasibility}</span>
+                  <span className="rounded-full border border-border-subtle px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Corr. RS3M: {fam.expectedCorrelationWithRs3m}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <StatTile label="Crowding risk" value={fam.crowdingRisk} />
+                  <StatTile label="Decay risk" value={fam.decayRisk} />
+                </div>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  <strong>Racional económico:</strong> {fam.economicRationale}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  <strong>Mercados / timeframe:</strong> {fam.markets} · {fam.timeframe}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  <strong>Tail risk:</strong> {fam.tailRiskNote}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  <strong>Principal riesgo de falsificación:</strong> {fam.mainFalsificationRisk}
+                </p>
+                <p className="mt-3 text-[11px] text-muted-foreground">Fuente: {fam.sourceDoc}</p>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );

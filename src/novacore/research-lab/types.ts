@@ -49,3 +49,41 @@ export interface CandidateVerificationStatus {
   verificationConfidenceNote: string;
   sourceDoc: string;
 }
+
+/**
+ * Block 9 §10/§28 — one Top-5 Strategy #2 discovery family, READ-ONLY.
+ * This is a LITERATURE-REVIEW record, not a `ResearchProject`: no
+ * backtest has been run for any of these (§8/§29 — Block 9 Phase A
+ * stops at pre-registration). Never wired into Strategy Hub or Bots.
+ */
+export interface Strategy2DiscoveryFamily {
+  rank: number;
+  letter: string;
+  name: string;
+  evidenceGrade: "A" | "B" | "C" | "D";
+  economicRationale: string;
+  markets: string;
+  timeframe: string;
+  dataFeasibility: "READY" | "PARTIAL" | "UNAVAILABLE";
+  executionFeasibility: "ALPACA_COMPATIBLE" | "OTHER_BROKER_REQUIRED" | "RESEARCH_ONLY";
+  expectedCorrelationWithRs3m: "LOW" | "MEDIUM" | "HIGH";
+  tailRiskNote: string;
+  crowdingRisk: "LOW" | "MEDIUM" | "MEDIUM-HIGH" | "HIGH";
+  decayRisk: "LOW" | "LOW-MEDIUM" | "MEDIUM" | "HIGH";
+  score: number;
+  mainFalsificationRisk: string;
+  sourceDoc: string;
+}
+
+/**
+ * Block 9 §9/§28 — cumulative research trial ledger summary, READ-ONLY.
+ * Full per-block breakdown lives in `results/block9/cumulative-trial-
+ * ledger.json`; this is only the rollup the Research Lab page displays.
+ */
+export interface CumulativeTrialLedgerSummary {
+  priorCumulativeFloor: string;
+  newTrialsThisBlock: number;
+  reconciledArithmetic: string;
+  policy: string;
+  sourceDoc: string;
+}
