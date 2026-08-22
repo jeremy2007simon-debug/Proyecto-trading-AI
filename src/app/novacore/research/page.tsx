@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatTile } from "@/components/dashboard/StatTile";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { FX_TOP5_FAMILY_SUMMARIES, US_INDEX_TOP5_FAMILY_SUMMARIES, listResearchProjects } from "@/novacore/research-lab/adapters/block-research-adapter";
+import { FX_TOP5_FAMILY_SUMMARIES, R3B_VERIFICATION, US_INDEX_TOP5_FAMILY_SUMMARIES, listResearchProjects } from "@/novacore/research-lab/adapters/block-research-adapter";
 
 const CANDIDATE_STATUS_CLASS: Record<string, string> = {
   REJECTED: "text-sell",
@@ -120,6 +120,42 @@ export default function NovaCoreResearchPage() {
             </Card>
           ))}
         </div>
+      </div>
+      <div className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Verificación independiente de candidatos (Block 8.4)</h2>
+        <p className="mb-4 text-xs text-muted">
+          Auditoría falsacionista, no optimización — reproducción independiente, no-lookahead adversarial, sensibilidad de parámetros y DSR bajo el pool completo de investigación acumulada.{" "}
+          <code>VERIFIED_CANDIDATE</code> nunca implica <code>PAPER_READY</code>.
+        </p>
+        <Card>
+          <CardHeader title={R3B_VERIFICATION.candidateId} description={R3B_VERIFICATION.sourceProject} />
+          <CardBody className="p-4">
+            <div className={`mb-2 inline-block rounded-full border border-border-subtle px-2 py-0.5 text-[11px] font-medium ${CANDIDATE_STATUS_CLASS[R3B_VERIFICATION.verificationStatus === "VERIFIED_CANDIDATE" ? "CANDIDATE" : "REJECTED"]}`}>
+              {R3B_VERIFICATION.verificationStatus}
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+              <StatTile label="Net CAGR" value={`${R3B_VERIFICATION.netCagrPct.toFixed(2)}%`} />
+              <StatTile label="MaxDD" value={`${R3B_VERIFICATION.maxDrawdownPct.toFixed(2)}%`} />
+              <StatTile label="Correlación vs RS3M" value={R3B_VERIFICATION.correlationVsRs3m.toFixed(2)} />
+            </div>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              <strong>OOS:</strong> {R3B_VERIFICATION.oosNote}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              <strong>Walk-forward:</strong> {R3B_VERIFICATION.walkForwardNote}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              <strong>DSR:</strong> {R3B_VERIFICATION.dsrNote}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              <strong>Beneficio de portfolio:</strong> {R3B_VERIFICATION.portfolioBenefitNote}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              <strong>Confianza de verificación:</strong> {R3B_VERIFICATION.verificationConfidenceNote}
+            </p>
+            <p className="mt-3 text-[11px] text-muted-foreground">Fuente: {R3B_VERIFICATION.sourceDoc}</p>
+          </CardBody>
+        </Card>
       </div>
     </div>
   );

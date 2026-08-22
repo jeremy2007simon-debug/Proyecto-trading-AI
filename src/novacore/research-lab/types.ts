@@ -26,3 +26,26 @@ export interface ResearchProject {
   notes: string;
   sourceDoc: string;
 }
+
+/**
+ * Block 8.4 §26 — read-only independent-verification outcome for a
+ * single candidate that has already been through a deep-research round
+ * (Block 8.3's R3-B is the first). Deliberately NOT a `ResearchProject`
+ * (this isn't a family/hypothesis rollup) and NOT wired into Strategy
+ * Hub — the brief's own §26 only allows a Strategy Hub entry "si
+ * sobrevive," which R3-B did not.
+ */
+export interface CandidateVerificationStatus {
+  candidateId: string;
+  sourceProject: string;
+  verificationStatus: "VERIFIED_CANDIDATE" | "REJECTED";
+  netCagrPct: number;
+  oosNote: string;
+  walkForwardNote: string;
+  maxDrawdownPct: number;
+  dsrNote: string;
+  correlationVsRs3m: number;
+  portfolioBenefitNote: string;
+  verificationConfidenceNote: string;
+  sourceDoc: string;
+}

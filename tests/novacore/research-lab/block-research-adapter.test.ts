@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getResearchProjectById, listResearchProjects, US_INDEX_TOP5_FAMILY_SUMMARIES } from "@/novacore/research-lab/adapters/block-research-adapter";
+import { getResearchProjectById, listResearchProjects, R3B_VERIFICATION, US_INDEX_TOP5_FAMILY_SUMMARIES } from "@/novacore/research-lab/adapters/block-research-adapter";
 
 describe("NovaCore Research Lab", () => {
   it("lists all transcribed research projects", () => {
@@ -56,6 +56,15 @@ describe("NovaCore Research Lab", () => {
     for (const fam of US_INDEX_TOP5_FAMILY_SUMMARIES) expect(fam.experiments).toBe(6);
     expect(US_INDEX_TOP5_FAMILY_SUMMARIES.filter((f) => f.candidateStatus === "CANDIDATE")).toHaveLength(1);
     expect(US_INDEX_TOP5_FAMILY_SUMMARIES.filter((f) => f.status === "DATA_INSUFFICIENT")).toHaveLength(1);
+  });
+
+  it("R3B_VERIFICATION reflects the Block 8.4 REJECTED decision — no candidate hash, not PAPER_READY", () => {
+    expect(R3B_VERIFICATION.candidateId).toBe("R3-B");
+    expect(R3B_VERIFICATION.verificationStatus).toBe("REJECTED");
+    expect(R3B_VERIFICATION.sourceDoc).toMatch(/BLOCK8_4/);
+    // Never a live-execution status — this constant has no PAPER_READY/PAPER_RUNNING notion at all.
+    expect(Object.values(R3B_VERIFICATION)).not.toContain("PAPER_READY");
+    expect(Object.values(R3B_VERIFICATION)).not.toContain("PAPER_RUNNING");
   });
 
   it("every project cites a source document — no invented numbers", () => {

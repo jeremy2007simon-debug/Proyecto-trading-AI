@@ -1,4 +1,4 @@
-import type { ResearchProject } from "@/novacore/research-lab/types";
+import type { CandidateVerificationStatus, ResearchProject } from "@/novacore/research-lab/types";
 
 /**
  * Block 7 — Research Lab entries, TRANSCRIBED (never recomputed) from the
@@ -274,3 +274,28 @@ export const FX_TOP5_FAMILY_SUMMARIES: FxFamilySummary[] = [
 export function getResearchProjectById(id: string): ResearchProject | undefined {
   return listResearchProjects().find((p) => p.id === id);
 }
+
+/**
+ * Block 8.4 — R3-B independent verification outcome. READ-ONLY,
+ * transcribed from `docs/BLOCK8_4_R3B_INDEPENDENT_VERIFICATION_REPORT.md`
+ * and `results/block8-4/statistical-validation/invalidation-criteria-and-
+ * decision.json`, never recomputed by this adapter or any page that
+ * reads it. R3-B was REJECTED — not wired into Strategy Hub (the brief's
+ * own §26 only allows that "si sobrevive," which it did not) and no
+ * `R3B_CANDIDATE_V1` was ever frozen.
+ */
+export const R3B_VERIFICATION: CandidateVerificationStatus = {
+  candidateId: "R3-B",
+  sourceProject: "US_INDEX_TOP5_DEEP_RESEARCH (Block 8.3, Family 3)",
+  verificationStatus: "REJECTED",
+  netCagrPct: 2.41,
+  oosNote: "OOS CAGR +3.40%/yr, BETTER than in-sample's +1.99%/yr on every metric. Rolling (expanding-window) OOS: 77.8% of windows positive (21/27).",
+  walkForwardNote: "10/18 windows positive (55.6%) — independently reproduced exactly. Distribution: best +14.1%, worst -8.2%, median +1.1% — a modest median with wide spread.",
+  maxDrawdownPct: 10.68,
+  dsrNote: "DSR = 0.96 under Block 8.3's own 24-trial pool, but collapses to 0.23 under the FULL cumulative research-history trial pool (>=154 trials across Blocks 4/4.5/5/8/8.2/8.3) this verification round's brief required testing — below this project's own 0.5 candidate bar. The decisive finding behind the REJECTED verdict.",
+  correlationVsRs3m: 0.02,
+  portfolioBenefitNote: "On RS3M's own official 2016-2026 window, a 50/50 RS3M+R3-B blend genuinely improves Sharpe (1.03->1.20) and nearly halves MaxDD (23.7%->12.3%) vs RS3M alone — a real, bug-free diversification benefit (the 65.1% vs 23.99% MaxDD discrepancy flagged going into this round was fully reconciled as a period-length artifact, not a bug). This benefit alone was not enough to overcome the DSR finding.",
+  verificationConfidenceNote:
+    "Independent reproduction: 0 unexplained discrepancies (66/66 trades match exactly). No look-ahead found (9 adversarial tests). Survives realistic cost up to 20bps/leg. Edge degrades gracefully under concentration removal (not dependent on a few lucky trades). But: entryRsiThreshold and the choice of regime TYPE (trend vs. volatility) are both genuine CLIFFs, not plateaus — combined with the DSR collapse, the edge is not distinguishable from a false discovery once this project's full search history is properly accounted for.",
+  sourceDoc: "docs/BLOCK8_4_R3B_INDEPENDENT_VERIFICATION_REPORT.md",
+};
