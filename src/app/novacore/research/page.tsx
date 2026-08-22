@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatTile } from "@/components/dashboard/StatTile";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { FX_TOP5_FAMILY_SUMMARIES, listResearchProjects } from "@/novacore/research-lab/adapters/block-research-adapter";
+import { FX_TOP5_FAMILY_SUMMARIES, US_INDEX_TOP5_FAMILY_SUMMARIES, listResearchProjects } from "@/novacore/research-lab/adapters/block-research-adapter";
 
 const CANDIDATE_STATUS_CLASS: Record<string, string> = {
   REJECTED: "text-sell",
@@ -81,6 +81,41 @@ export default function NovaCoreResearchPage() {
                     Requiere datos macro point-in-time (vintage) que este entorno no puede verificar sin API key — ver §3.5 del informe.
                   </p>
                 )}
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">US Index Research — desglose por familia (Block 8.3)</h2>
+        <p className="mb-4 text-xs text-muted">
+          Solo investigación. Cada candidata mecánica fue además contrastada contra Deflated Sharpe Ratio y correlación vs RS3M_CANDIDATE_V1 (benchmark, nunca reutilizado como lógica) — <code>CANDIDATE</code> nunca implica <code>PAPER_READY</code>.
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {US_INDEX_TOP5_FAMILY_SUMMARIES.map((fam) => (
+            <Card key={fam.family}>
+              <CardHeader title={fam.family} description={fam.status === "DATA_INSUFFICIENT" ? "Datos insuficientes (muestra por debajo del mínimo)" : `${fam.experiments} experimentos`} />
+              <CardBody className="p-4">
+                <div className={`mb-2 inline-block rounded-full border border-border-subtle px-2 py-0.5 text-[11px] font-medium ${CANDIDATE_STATUS_CLASS[fam.candidateStatus]}`}>
+                  {fam.candidateStatus}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <StatTile label="Mejor bruto/año" value={fam.bestGrossAnnualizedPct !== null ? `${fam.bestGrossAnnualizedPct.toFixed(1)}%` : "—"} />
+                  <StatTile label="Mejor neto/año" value={fam.bestNetAnnualizedPct !== null ? `${fam.bestNetAnnualizedPct.toFixed(1)}%` : "—"} />
+                </div>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  <strong>OOS/WF:</strong> {fam.oosNote}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  <strong>MaxDD/Robustez:</strong> {fam.maxDrawdownNote}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  <strong>Costes:</strong> {fam.costMarginNote}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  <strong>Correlación vs RS3M:</strong> {fam.correlationVsRs3mNote}
+                </p>
               </CardBody>
             </Card>
           ))}

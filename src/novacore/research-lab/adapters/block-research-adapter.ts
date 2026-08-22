@@ -92,9 +92,113 @@ export const FX_TOP5_DEEP_RESEARCH: ResearchProject = {
   sourceDoc: "docs/BLOCK8_2_FX_TOP5_DEEP_RESEARCH_REPORT.md",
 };
 
+/** Block 8.3 — deep research on 5 economically-distinct US-index hypotheses (volatility-managed exposure, intraday momentum, regime-dependent trend/pullback, cross-index rotation, hybrid momentum-contrarian) on SPY/QQQ/IWM/DIA. Every candidate is additionally screened for Deflated Sharpe Ratio and correlation vs RS3M_CANDIDATE_V1 — a mechanical CANDIDATE that fails either check is downgraded to RESEARCH, exactly the same override discipline Block 8.2 applied to F3-E. */
+export const US_INDEX_TOP5_DEEP_RESEARCH: ResearchProject = {
+  id: "US_INDEX_TOP5_DEEP_RESEARCH",
+  name: "US Index Top-5 Deep Research",
+  objective:
+    "Test 5 economically-distinct US-index return sources (volatility-managed exposure, intraday opening-directional-persistence momentum, regime-filtered trend/pullback, cross-index rotation, hybrid momentum-contrarian) on SPY/QQQ/IWM/DIA over up to 33 years of daily data (2 years for the intraday family, Yahoo's own ceiling for hourly bars), with every candidate additionally screened for multiple-testing-corrected significance (DSR) and correlation vs RS3M_CANDIDATE_V1.",
+  createdAt: "2026-08-22",
+  status: "COMPLETE",
+  hypothesesTotal: 30,
+  // 1 true REJECTED (R3-E) + 6 DATA_INSUFFICIENT (Family 2 — sample-size floor never reached, see `US_INDEX_TOP5_FAMILY_SUMMARIES`'s per-family `status`) grouped here since neither survives to RESEARCH/CANDIDATE; the family cards below distinguish "tested and failed" from "couldn't be tested properly."
+  rejected: 7,
+  research: 22,
+  candidates: 1,
+  constraints: [
+    "Pre-registered 30-configuration budget (6 per family), fixed before any result was inspected",
+    "Alpaca Market Data tried first — confirmed unusable (401 Unauthorized, no Data API credentials configured); Yahoo Finance used as the same documented fallback Block 8/8.2 already use, with an explicit adjusted-vs-raw-close test guarding against the prior unadjusted-price bug",
+    "GROSS and NET always reported together, plus OPTIMISTIC/REALISTIC/STRESSED cost scenarios (separate SWING vs INTRADAY tiers)",
+    "Deflated Sharpe Ratio computed per-methodology-pool (daily-native Families 1/3/4/5 vs trade-based Family 2 — never pooled together, which would conflate incompatible Sharpe units)",
+    "Every mechanical CANDIDATE additionally screened for correlation vs RS3M_CANDIDATE_V1 (reconstructed read-only via RS3M's own unmodified engine, used only as a benchmark) — LOW diversification value (|corr| > 0.6) downgrades to RESEARCH",
+    "No RS3M code, data, or parameters modified — read-only benchmark reconstruction only",
+  ],
+  benchmarks: ["SPY buy-and-hold", "QQQ buy-and-hold", "Equal-weight SPY/QQQ/IWM/DIA", "RS3M_CANDIDATE_V1 (benchmark only, never reused as logic)"],
+  notes:
+    "Only 1 of 30 configurations survives full scrutiny: R3-B (Family 3, SPY, pullback-in-uptrend gated by a long-term-trend regime filter) — DSR 0.96, correlation vs RS3M only 0.11 (a genuine diversifier), net CAGR 2.4%/yr with a 10.7% max drawdown. A combined RS3M+R3-B 50/50 portfolio improves Sharpe from 0.74 to 0.84 and cuts max drawdown from 65% to 37% versus RS3M alone. Two families that mechanically cleared the CANDIDATE gate were downgraded on review: Family 1 (Volatility-Managed Exposure, 5/6 mechanical CANDIDATEs, DSR up to 1.0) is statistically the strongest standalone result of the round but correlates 0.79-0.82 with RS3M (LOW diversification value, fails the independence bar). Family 4 (Cross-Index Rotation, 6/6 mechanical CANDIDATEs, DSR up to 1.0) correlates 0.90-0.95 with RS3M — every lookback/ranking/weighting variant tested ends up being, in practice, nearly the same trade as RS3M under different plumbing, exactly the risk this round's brief warned about. Family 5 (Hybrid Momentum-Contrarian) has DSR = 0.00 for every config — indistinguishable from luck after multiple-testing correction. Family 2 (Intraday Momentum) is DATA_INSUFFICIENT: Yahoo's 60-day ceiling for sub-hourly bars and ~2-year ceiling for 1h bars leaves every configuration below the 36-month sanity floor, and the underlying economics were net-negative at realistic intraday cost regardless.",
+  sourceDoc: "docs/BLOCK8_3_US_INDEX_TOP5_DEEP_RESEARCH_REPORT.md",
+};
+
 export function listResearchProjects(): ResearchProject[] {
-  return [ETF_ROTATION_RESEARCH, SP500_LEGACY_STRATEGY_RESEARCH, FOREX_RESEARCH_V1, FX_TOP5_DEEP_RESEARCH];
+  return [ETF_ROTATION_RESEARCH, SP500_LEGACY_STRATEGY_RESEARCH, FOREX_RESEARCH_V1, FX_TOP5_DEEP_RESEARCH, US_INDEX_TOP5_DEEP_RESEARCH];
 }
+
+/** Block 8.3 §28 — per-family breakdown for the US Index Research dashboard cards. Read-only observability, transcribed from `results/block8-3/experiments/*.json` and `results/block8-3/multiple-testing/review.json` — never recomputed by the page. */
+export interface UsIndexFamilySummary {
+  family: string;
+  status: "COMPLETE" | "DATA_INSUFFICIENT";
+  experiments: number;
+  bestGrossAnnualizedPct: number | null;
+  bestNetAnnualizedPct: number | null;
+  oosNote: string;
+  maxDrawdownNote: string;
+  costMarginNote: string;
+  correlationVsRs3mNote: string;
+  candidateStatus: "REJECTED" | "RESEARCH" | "CANDIDATE" | "DATA_INSUFFICIENT";
+}
+
+export const US_INDEX_TOP5_FAMILY_SUMMARIES: UsIndexFamilySummary[] = [
+  {
+    family: "1: Volatility-Managed Equity Exposure",
+    status: "COMPLETE",
+    experiments: 6,
+    bestGrossAnnualizedPct: 10.73,
+    bestNetAnnualizedPct: 10.6,
+    oosNote: "5/6 configs mechanically clear CANDIDATE (positive OOS, majority walk-forward, DSR up to 1.0) — the round's strongest standalone statistical result.",
+    maxDrawdownNote: "Realized-vol-target configs (10-15%/yr) show a genuine parameter plateau: Sharpe 0.81-0.84 across every target/lookback combination on SPY. ATR-proxy variant (V1-F) is materially weaker (DSR 0.23).",
+    costMarginNote: "Positive throughout the full 0-12bps tested range — SWING rebalance turnover is cheap on these four ETFs.",
+    correlationVsRs3mNote: "0.79-0.82 with RS3M — LOW diversification value. Downgraded to RESEARCH: statistically real, but not a useful Strategy #2 alongside RS3M.",
+    candidateStatus: "RESEARCH",
+  },
+  {
+    family: "2: Intraday Momentum",
+    status: "DATA_INSUFFICIENT",
+    experiments: 6,
+    bestGrossAnnualizedPct: 8.47,
+    bestNetAnnualizedPct: -5.5,
+    oosNote: "Not reached — every config fails the 36-month sample-size sanity floor (Yahoo's 60-day/2-year ceilings for sub-hourly/hourly bars).",
+    maxDrawdownNote: "Not computed — Stage-1 sanity failure stops the funnel before deeper stages, per the fail-fast convention.",
+    costMarginNote: "Net-negative at realistic intraday cost for every config even before the sample-size problem — gross edge exists but is thin relative to a 4bps round-trip.",
+    correlationVsRs3mNote: "Not computed (never reached that stage).",
+    candidateStatus: "DATA_INSUFFICIENT",
+  },
+  {
+    family: "3: Regime-Dependent Trend/Pullback",
+    status: "COMPLETE",
+    experiments: 6,
+    bestGrossAnnualizedPct: 2.53,
+    bestNetAnnualizedPct: 2.41,
+    oosNote: "R3-B (SPY, LONG_TERM_TREND filter) OOS-positive, 55.6% walk-forward-positive (10/18 windows), DSR 0.96.",
+    maxDrawdownNote: "10.7% net MaxDD — the shallowest of any config in this round. Regime-filter choice is NOT a smooth plateau: the LONG_TERM_TREND filter helps (R3-A -> R3-B improves Sharpe 0.60 -> 0.71), but the VOL_REGIME filter (alone or combined) collapses Sharpe to ~0.27 — a real, disclosed asymmetry, not full robustness.",
+    costMarginNote: "Positive throughout the full 0-12bps tested range.",
+    correlationVsRs3mNote: "0.11-0.15 with RS3M — HIGH diversification value. The round's only genuine survivor.",
+    candidateStatus: "CANDIDATE",
+  },
+  {
+    family: "4: Cross-Index Relative Strength/Rotation",
+    status: "COMPLETE",
+    experiments: 6,
+    bestGrossAnnualizedPct: 13.83,
+    bestNetAnnualizedPct: 13.36,
+    oosNote: "6/6 configs mechanically clear CANDIDATE — DSR 0.96-1.0, the highest statistical confidence of any family this round.",
+    maxDrawdownNote: "44-63% net MaxDD (Monte Carlo P95 up to 63%) — substantially deeper than RS3M's own historical drawdown profile.",
+    costMarginNote: "Positive throughout the full 0-12bps tested range.",
+    correlationVsRs3mNote: "0.90-0.95 with RS3M — LOW diversification value. Downgraded to RESEARCH: every shorter-lookback/risk-adjusted/blended variant tested ends up nearly the same trade as RS3M, exactly the risk this family's own pre-registered invalidation criterion flagged.",
+    candidateStatus: "RESEARCH",
+  },
+  {
+    family: "5: Hybrid Momentum-Contrarian",
+    status: "COMPLETE",
+    experiments: 6,
+    bestGrossAnnualizedPct: 3.7,
+    bestNetAnnualizedPct: 3.29,
+    oosNote: "5/6 configs mechanically clear CANDIDATE, but Deflated Sharpe Ratio = 0.00 for every single config in the family.",
+    maxDrawdownNote: "47-62% net MaxDD, Monte Carlo probability of terminal loss up to 6.5% — a materially worse risk profile than Families 1 or 3.",
+    costMarginNote: "Positive throughout the full 0-12bps tested range.",
+    correlationVsRs3mNote: "0.58-0.66 with RS3M — MEDIUM/LOW diversification value.",
+    candidateStatus: "RESEARCH",
+  },
+];
 
 /** Block 8.2 §30 — per-family breakdown for the FX Research dashboard cards. Read-only observability, transcribed from `results/block8-2/experiments/*.json` — never recomputed by the page. */
 export interface FxFamilySummary {
