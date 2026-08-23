@@ -1,4 +1,4 @@
-import type { CumulativeTrialLedgerSummary, Strategy2BacktestFamilyOutcome, Strategy2CandidateSummary, Strategy2DiscoveryFamily } from "@/novacore/research-lab/types";
+import type { CumulativeTrialLedgerSummary, Strategy2BacktestFamilyOutcome, Strategy2CandidateSummary, Strategy2DiscoveryFamily, Strategy2VerificationOutcome } from "@/novacore/research-lab/types";
 
 /**
  * Block 9 — Strategy #2 Discovery & Pre-Registration. READ-ONLY,
@@ -182,15 +182,15 @@ export const STRATEGY2_CANDIDATES: Strategy2CandidateSummary[] = [
     configId: "E-C",
     family: "E — Volatility Risk Premium",
     description: "Long SVXY, fixed notional, hard -15% stop, entry gated on trailing-1yr VIX percentile <= median",
-    netTotalReturnPct: 1215.9,
-    annualizedSharpe: 0.755,
-    maxDrawdownPct: 21.0,
-    dsrCumulativePool: 0.995,
-    correlationVsRs3m: 0.331,
-    portfolioBlendSharpe: 1.064,
-    portfolioBlendMaxDrawdownPct: 18.15,
-    independentVerificationStatus: "NOT_STARTED",
-    sourceDoc: "docs/BLOCK9B_STRATEGY2_DEEP_BACKTEST_REPORT.md §5",
+    netTotalReturnPct: 449.7,
+    annualizedSharpe: 0.534,
+    maxDrawdownPct: 52.94,
+    dsrCumulativePool: 0.265,
+    correlationVsRs3m: 0.275,
+    portfolioBlendSharpe: 0.903,
+    portfolioBlendMaxDrawdownPct: 26.4,
+    independentVerificationStatus: "REJECTED",
+    sourceDoc: "docs/BLOCK9Y_INDEPENDENT_VERIFICATION_REPORT.md",
   },
   {
     configId: "C-A",
@@ -203,8 +203,45 @@ export const STRATEGY2_CANDIDATES: Strategy2CandidateSummary[] = [
     correlationVsRs3m: 0.077,
     portfolioBlendSharpe: 0.878,
     portfolioBlendMaxDrawdownPct: 44.19,
-    independentVerificationStatus: "NOT_STARTED",
-    sourceDoc: "docs/BLOCK9B_STRATEGY2_DEEP_BACKTEST_REPORT.md §5",
+    independentVerificationStatus: "VERIFIED",
+    sourceDoc: "docs/BLOCK9Y_INDEPENDENT_VERIFICATION_REPORT.md",
+  },
+];
+
+/**
+ * Block 9.y — independent verification outcomes. Note: E-C's figures
+ * above (`STRATEGY2_CANDIDATES`) were UPDATED from Block 9.x's original
+ * report to the spec-compliant (independent) implementation's numbers —
+ * Block 9.x's original DSR-0.995/net-+1215.9% figures for E-C were
+ * produced by a confirmed implementation bug (see `reproductionVerdict`
+ * below) and are NOT carried forward as this candidate's current
+ * standing.
+ */
+export const STRATEGY2_VERIFICATION_OUTCOMES: Strategy2VerificationOutcome[] = [
+  {
+    configId: "C-A",
+    status: "VERIFIED",
+    specHash: "f6b860f5",
+    reproductionVerdict: "PASS (explained, immaterial): 4/8194 trigger-day mismatches and a ~2pp total-return gap vs. the independent reimplementation, fully explained by a deliberately different (but equally standard) percentile-interpolation method.",
+    keyFailurePoints: [],
+    portfolioContribution: "Official window (2016-01..2026-08, 128mo): RS3M alone Sharpe 1.028/MaxDD 23.67% -> 50/50 blend Sharpe 1.039/MaxDD 20.16% (both improve). Extended window (1994-01..2026-08, 392mo): RS3M alone Sharpe 0.736/MaxDD 65.11% -> blend Sharpe 0.878/MaxDD 44.19% (both improve). Confirmed on identical windows in both cases.",
+    sourceDoc: "docs/BLOCK9Y_INDEPENDENT_VERIFICATION_REPORT.md",
+  },
+  {
+    configId: "E-C",
+    status: "REJECTED",
+    specHash: "6b8da4c9",
+    reproductionVerdict:
+      "FAIL: the original Block 9.x implementation's VIX-percentile lookback used ~252 CALENDAR days (confirmed = 180 actual trading-day observations) instead of the spec-intended 252 TRADING days. 369/3741 (9.9%) day-level position mismatches vs. the spec-compliant independent implementation; net total return 1215.9% (original, buggy) vs. 449.7% (independent, spec-compliant) — a confirmed, material, decisive discrepancy, not a rounding difference.",
+    keyFailurePoints: [
+      "Reproduction failure alone is decisive per this block's own rule.",
+      "DSR under the >=171 cumulative pool (spec-compliant series): 0.265, well below the 0.5 bar.",
+      "Walk-forward positive-window rate (spec-compliant series): 46.7%, below the 50% majority bar.",
+      "Only 3 total position entries across ~15 years of SVXY history (spec-compliant filter) — ALL 3 ended in a stop-loss (100% stop rate), a strong overfitting/mistimed-entry signal from a very thin sample.",
+      "Gap-aware worst real drawdown 55.2% (block-bootstrap MC P95/P99 64.0%/72.9%, spec-compliant series) — an unacceptable tail for a candidate this project would run in Paper.",
+    ],
+    portfolioContribution: "Official window (2016-01..2026-08, 128mo): RS3M alone Sharpe 1.028/MaxDD 23.67% -> 50/50 blend Sharpe 0.970 (LOWER)/MaxDD 21.46% (slightly improved). Extended window (2011-10..2026-08, 179mo): RS3M alone Sharpe 1.097/MaxDD 23.67% -> blend Sharpe 0.903 (LOWER)/MaxDD 26.40% (WORSE). The spec-compliant candidate's portfolio case is materially weaker than Block 9.x originally reported.",
+    sourceDoc: "docs/BLOCK9Y_INDEPENDENT_VERIFICATION_REPORT.md",
   },
 ];
 

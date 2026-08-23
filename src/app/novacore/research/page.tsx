@@ -7,6 +7,7 @@ import {
   LITERATURE_FAMILIES_REVIEWED_COUNT,
   STRATEGY2_BACKTEST_OUTCOMES,
   STRATEGY2_CANDIDATES,
+  STRATEGY2_VERIFICATION_OUTCOMES,
   STRATEGY2_TOP5_FAMILIES,
 } from "@/novacore/research-lab/adapters/block9-strategy2-discovery-adapter";
 
@@ -242,9 +243,9 @@ export default function NovaCoreResearchPage() {
       </div>
 
       <div className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Candidatas supervivientes — detalle</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Candidatas — estado tras verificación independiente (Block 9.y)</h2>
         <p className="mb-4 text-xs text-muted">
-          <code>independentVerificationStatus: NOT_STARTED</code> para ambas — la verificación independiente (al estilo Block 8.4) es un paso futuro, separado y explícitamente autorizado, no automático.
+          Figuras actualizadas a la implementación spec-compliant tras la verificación — las cifras originales de Block 9.x para E-C quedaron invalidadas por un bug confirmado (ver sección de abajo).
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {STRATEGY2_CANDIDATES.map((c) => (
@@ -258,12 +259,43 @@ export default function NovaCoreResearchPage() {
                   <StatTile label="MaxDD" value={`${c.maxDrawdownPct.toFixed(1)}%`} />
                   <StatTile label="DSR (pool acumulado)" value={c.dsrCumulativePool?.toFixed(3) ?? "—"} />
                   <StatTile label="Corr. vs RS3M" value={c.correlationVsRs3m?.toFixed(3) ?? "—"} />
-                  <StatTile label="Verificación" value={c.independentVerificationStatus} valueClassName="text-wait" />
+                  <StatTile label="Verificación" value={c.independentVerificationStatus} valueClassName={c.independentVerificationStatus === "VERIFIED" ? "text-buy" : c.independentVerificationStatus === "REJECTED" ? "text-sell" : "text-wait"} />
                 </div>
                 <p className="mt-3 text-[11px] text-muted-foreground">
                   <strong>Portfolio 50/50 con RS3M:</strong> Sharpe {c.portfolioBlendSharpe?.toFixed(3) ?? "—"}, MaxDD {c.portfolioBlendMaxDrawdownPct?.toFixed(1) ?? "—"}%.
                 </p>
                 <p className="mt-3 text-[11px] text-muted-foreground">Fuente: {c.sourceDoc}</p>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Verificación independiente — detalle (Block 9.y)</h2>
+        <div className="mb-4 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3 text-xs text-accent">
+          <strong>Ronda de falsificación, no de promoción.</strong> Reimplementación independiente (sin importar la lógica de señal original), specs congeladas con hash, y falsificación adversarial. Cero sobrevivientes habría sido un resultado aceptable — ninguna candidata está conectada a Paper, Alpaca, opciones ni LIVE.
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {STRATEGY2_VERIFICATION_OUTCOMES.map((v) => (
+            <Card key={v.configId}>
+              <CardHeader title={v.configId} description={`Spec hash: ${v.specHash}`} />
+              <CardBody className="p-4">
+                <div className={`mb-2 inline-block rounded-full border border-border-subtle px-2 py-0.5 text-[11px] font-medium ${v.status === "VERIFIED" ? "text-buy" : v.status === "REJECTED" ? "text-sell" : "text-wait"}`}>{v.status}</div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  <strong>Reproducción:</strong> {v.reproductionVerdict}
+                </p>
+                {v.keyFailurePoints.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] text-muted-foreground">
+                    {v.keyFailurePoints.map((f) => (
+                      <li key={f}>{f}</li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  <strong>Portfolio:</strong> {v.portfolioContribution}
+                </p>
+                <p className="mt-3 text-[11px] text-muted-foreground">Fuente: {v.sourceDoc}</p>
               </CardBody>
             </Card>
           ))}

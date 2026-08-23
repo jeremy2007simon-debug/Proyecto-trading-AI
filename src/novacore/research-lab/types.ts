@@ -108,10 +108,11 @@ export interface Strategy2BacktestFamilyOutcome {
 /**
  * Block 9.x §5 — one surviving CANDIDATE's key figures + its portfolio
  * contribution alongside RS3M, READ-ONLY. `independentVerificationStatus`
- * is always `"NOT_STARTED"` here by construction — per the brief's
- * explicit instruction, this block does not begin independent
- * verification automatically (mirrors Block 8.3 -> Block 8.4 being two
- * separate, explicitly-gated blocks).
+ * was `"NOT_STARTED"` when this record was first created (Block 9.x
+ * deliberately did not begin verification automatically); Block 9.y ran
+ * that verification and updates it to the actual outcome —
+ * `"VERIFIED"`/`"RESEARCH"`/`"REJECTED"`/`"DATA_INSUFFICIENT"` — never
+ * silently left stale.
  */
 export interface Strategy2CandidateSummary {
   configId: string;
@@ -124,6 +125,24 @@ export interface Strategy2CandidateSummary {
   correlationVsRs3m: number | undefined;
   portfolioBlendSharpe: number | undefined;
   portfolioBlendMaxDrawdownPct: number | undefined;
-  independentVerificationStatus: "NOT_STARTED";
+  independentVerificationStatus: "NOT_STARTED" | "VERIFIED" | "RESEARCH" | "REJECTED" | "DATA_INSUFFICIENT";
+  sourceDoc: string;
+}
+
+/**
+ * Block 9.y — one candidate's independent-verification outcome,
+ * READ-ONLY, transcribed from
+ * `docs/BLOCK9Y_INDEPENDENT_VERIFICATION_REPORT.md`. A falsification
+ * round: `status` can be `REJECTED` even for a config Block 9.x called
+ * `CANDIDATE` — that is the correct, expected, and here actual outcome
+ * for one of the two, not a failure of the process.
+ */
+export interface Strategy2VerificationOutcome {
+  configId: string;
+  status: "VERIFIED" | "RESEARCH" | "REJECTED" | "DATA_INSUFFICIENT";
+  specHash: string;
+  reproductionVerdict: string;
+  keyFailurePoints: string[];
+  portfolioContribution: string;
   sourceDoc: string;
 }

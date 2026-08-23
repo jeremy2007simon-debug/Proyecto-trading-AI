@@ -5,6 +5,7 @@ import {
   STRATEGY2_BACKTEST_OUTCOMES,
   STRATEGY2_CANDIDATES,
   STRATEGY2_TOP5_FAMILIES,
+  STRATEGY2_VERIFICATION_OUTCOMES,
   getStrategy2FamilyByRank,
 } from "@/novacore/research-lab/adapters/block9-strategy2-discovery-adapter";
 
@@ -76,27 +77,43 @@ describe("Block 9.x — Strategy #2 deep-backtest adapter (Phase B)", () => {
     }
   });
 
-  it("both surviving candidates have independent verification NOT_STARTED — never begun automatically", () => {
+  it("Block 9.y independent verification resolved both candidates — C-A VERIFIED, E-C REJECTED — never left NOT_STARTED", () => {
     expect(STRATEGY2_CANDIDATES).toHaveLength(2);
+    const ca = STRATEGY2_CANDIDATES.find((c) => c.configId === "C-A");
+    const ec = STRATEGY2_CANDIDATES.find((c) => c.configId === "E-C");
+    expect(ca?.independentVerificationStatus).toBe("VERIFIED");
+    expect(ec?.independentVerificationStatus).toBe("REJECTED");
     for (const c of STRATEGY2_CANDIDATES) {
-      expect(c.independentVerificationStatus).toBe("NOT_STARTED");
       expect(Object.values(c)).not.toContain("PAPER_READY");
       expect(Object.values(c)).not.toContain("PAPER_RUNNING");
-      expect(Object.values(c)).not.toContain("VERIFIED_CANDIDATE");
     }
   });
 
-  it("C-A is the round's best diversifier and E-C its highest-DSR survivor, matching the report's own ranking", () => {
+  it("C-A is the round's best diversifier and, post-verification, also its higher-DSR survivor (E-C's original DSR was invalidated by a confirmed implementation bug)", () => {
     const ca = STRATEGY2_CANDIDATES.find((c) => c.configId === "C-A");
     const ec = STRATEGY2_CANDIDATES.find((c) => c.configId === "E-C");
     expect(ca?.correlationVsRs3m).toBeLessThan(ec?.correlationVsRs3m ?? 1);
-    expect(ec?.dsrCumulativePool).toBeGreaterThan(ca?.dsrCumulativePool ?? 1);
+    expect(ca?.dsrCumulativePool).toBeGreaterThan(ec?.dsrCumulativePool ?? 1);
   });
 
-  it("every candidate's 50/50 blend with RS3M improves or trades off MaxDD sensibly (blend MaxDD never exceeds RS3M-alone MaxDD reported in the discovery doc's own 23.67%/65.11% baselines)", () => {
+  it("C-A's verified 50/50 blend with RS3M improves MaxDD on both windows; E-C's spec-compliant blend does not clearly improve on the extended window", () => {
     const ec = STRATEGY2_CANDIDATES.find((c) => c.configId === "E-C")!;
     const ca = STRATEGY2_CANDIDATES.find((c) => c.configId === "C-A")!;
-    expect(ec.portfolioBlendMaxDrawdownPct).toBeLessThan(23.67);
-    expect(ca.portfolioBlendMaxDrawdownPct).toBeLessThan(65.11);
+    expect(ca.portfolioBlendMaxDrawdownPct).toBeLessThan(65.11); // C-A's own extended-window RS3M-alone baseline
+    expect(ec.portfolioBlendMaxDrawdownPct).toBeGreaterThan(23.67); // E-C's spec-compliant blend is WORSE than RS3M alone on the extended window — a real, disclosed finding, not a bug
+  });
+
+  it("both verification outcomes cite the frozen spec hash and a real reproduction verdict", () => {
+    expect(STRATEGY2_VERIFICATION_OUTCOMES).toHaveLength(2);
+    for (const v of STRATEGY2_VERIFICATION_OUTCOMES) {
+      expect(v.specHash).toMatch(/^[0-9a-f]{8}$/);
+      expect(v.reproductionVerdict.length).toBeGreaterThan(0);
+      expect(v.sourceDoc).toMatch(/BLOCK9Y/);
+    }
+    const ec = STRATEGY2_VERIFICATION_OUTCOMES.find((v) => v.configId === "E-C")!;
+    expect(ec.reproductionVerdict).toMatch(/FAIL/);
+    expect(ec.keyFailurePoints.length).toBeGreaterThan(0);
+    const ca = STRATEGY2_VERIFICATION_OUTCOMES.find((v) => v.configId === "C-A")!;
+    expect(ca.keyFailurePoints).toHaveLength(0);
   });
 });
