@@ -87,3 +87,43 @@ export interface CumulativeTrialLedgerSummary {
   policy: string;
   sourceDoc: string;
 }
+
+/**
+ * Block 9.x §2-4 — one family's deep-backtest verdict, READ-ONLY,
+ * transcribed from `docs/BLOCK9B_STRATEGY2_DEEP_BACKTEST_REPORT.md`.
+ * Distinct from `Strategy2DiscoveryFamily` (Phase A, literature-only,
+ * pre-backtest) — this is Phase B's actual funnel outcome.
+ */
+export interface Strategy2BacktestFamilyOutcome {
+  letter: string;
+  name: string;
+  configsExecuted: number;
+  configsDataInsufficient: number;
+  candidateConfigIds: string[];
+  verdict: "CANDIDATE_FOUND" | "NO_CANDIDATE";
+  summary: string;
+  sourceDoc: string;
+}
+
+/**
+ * Block 9.x §5 — one surviving CANDIDATE's key figures + its portfolio
+ * contribution alongside RS3M, READ-ONLY. `independentVerificationStatus`
+ * is always `"NOT_STARTED"` here by construction — per the brief's
+ * explicit instruction, this block does not begin independent
+ * verification automatically (mirrors Block 8.3 -> Block 8.4 being two
+ * separate, explicitly-gated blocks).
+ */
+export interface Strategy2CandidateSummary {
+  configId: string;
+  family: string;
+  description: string;
+  netTotalReturnPct: number;
+  annualizedSharpe: number | undefined;
+  maxDrawdownPct: number;
+  dsrCumulativePool: number | undefined;
+  correlationVsRs3m: number | undefined;
+  portfolioBlendSharpe: number | undefined;
+  portfolioBlendMaxDrawdownPct: number | undefined;
+  independentVerificationStatus: "NOT_STARTED";
+  sourceDoc: string;
+}

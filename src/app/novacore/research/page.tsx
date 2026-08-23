@@ -2,7 +2,13 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatTile } from "@/components/dashboard/StatTile";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { FX_TOP5_FAMILY_SUMMARIES, R3B_VERIFICATION, US_INDEX_TOP5_FAMILY_SUMMARIES, listResearchProjects } from "@/novacore/research-lab/adapters/block-research-adapter";
-import { CUMULATIVE_TRIAL_LEDGER_SUMMARY, LITERATURE_FAMILIES_REVIEWED_COUNT, STRATEGY2_TOP5_FAMILIES } from "@/novacore/research-lab/adapters/block9-strategy2-discovery-adapter";
+import {
+  CUMULATIVE_TRIAL_LEDGER_SUMMARY,
+  LITERATURE_FAMILIES_REVIEWED_COUNT,
+  STRATEGY2_BACKTEST_OUTCOMES,
+  STRATEGY2_CANDIDATES,
+  STRATEGY2_TOP5_FAMILIES,
+} from "@/novacore/research-lab/adapters/block9-strategy2-discovery-adapter";
 
 const DATA_FEASIBILITY_CLASS: Record<string, string> = {
   READY: "text-buy",
@@ -166,10 +172,10 @@ export default function NovaCoreResearchPage() {
       </div>
 
       <div className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Strategy #2 Discovery — Literature Review &amp; Pre-Registration (Block 9)</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Strategy #2 Discovery — Literature Review &amp; Pre-Registration (Block 9, Phase A)</h2>
         <div className="mb-4 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3 text-xs text-accent">
-          <strong>Solo literatura, cero backtests.</strong> Ninguna de las 5 familias de abajo tiene un resultado de backtest — es una revisión de evidencia externa y una pre-registración congelada
-          (<code>docs/BLOCK9_STRATEGY2_PREREGISTRATION.md</code>), a la espera de revisión antes de ejecutar el primer experimento. R3-B sigue REJECTED y no fue reutilizado en ninguna familia.
+          <strong>Fase A: solo literatura.</strong> Este ranking de 5 familias es la revisión de evidencia externa y pre-registración congelada
+          (<code>docs/BLOCK9_STRATEGY2_PREREGISTRATION.md</code>) que precedió a cualquier backtest. Los resultados reales del backtest (Fase B) están más abajo. R3-B sigue REJECTED y no fue reutilizado en ninguna familia.
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile label="Familias revisadas (A-T)" value={LITERATURE_FAMILIES_REVIEWED_COUNT} />
@@ -207,6 +213,57 @@ export default function NovaCoreResearchPage() {
                   <strong>Principal riesgo de falsificación:</strong> {fam.mainFalsificationRisk}
                 </p>
                 <p className="mt-3 text-[11px] text-muted-foreground">Fuente: {fam.sourceDoc}</p>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Strategy #2 Deep Backtest — Fail-Fast Funnel Results (Block 9.x, Phase B)</h2>
+        <div className="mb-4 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3 text-xs text-accent">
+          <strong>Investigación, no ejecución.</strong> 18 de las 20 configuraciones pre-registradas corrieron el funnel de 12 etapas (2 quedaron <code>DATA_INSUFFICIENT</code> — sin cadena de opciones histórica). 2 candidatas
+          sobrevivieron — ninguna está conectada a Paper, Alpaca, opciones ni LIVE, y la verificación independiente <strong>no</strong> comenzó automáticamente.
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {STRATEGY2_BACKTEST_OUTCOMES.map((fam) => (
+            <Card key={fam.letter}>
+              <CardHeader title={`${fam.letter}: ${fam.name}`} description={`${fam.configsExecuted} ejecutadas${fam.configsDataInsufficient > 0 ? `, ${fam.configsDataInsufficient} DATA_INSUFFICIENT` : ""}`} />
+              <CardBody className="p-4">
+                <div className={`mb-2 inline-block rounded-full border border-border-subtle px-2 py-0.5 text-[11px] font-medium ${fam.verdict === "CANDIDATE_FOUND" ? "text-buy" : "text-muted-foreground"}`}>
+                  {fam.verdict === "CANDIDATE_FOUND" ? `CANDIDATE: ${fam.candidateConfigIds.join(", ")}` : "NO CANDIDATE"}
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">{fam.summary}</p>
+                <p className="mt-3 text-[11px] text-muted-foreground">Fuente: {fam.sourceDoc}</p>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Candidatas supervivientes — detalle</h2>
+        <p className="mb-4 text-xs text-muted">
+          <code>independentVerificationStatus: NOT_STARTED</code> para ambas — la verificación independiente (al estilo Block 8.4) es un paso futuro, separado y explícitamente autorizado, no automático.
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {STRATEGY2_CANDIDATES.map((c) => (
+            <Card key={c.configId}>
+              <CardHeader title={c.configId} description={c.family} />
+              <CardBody className="p-4">
+                <p className="text-[11px] text-muted-foreground">{c.description}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                  <StatTile label="Net total return" value={`${c.netTotalReturnPct.toFixed(1)}%`} />
+                  <StatTile label="Sharpe anualizado" value={c.annualizedSharpe?.toFixed(3) ?? "—"} />
+                  <StatTile label="MaxDD" value={`${c.maxDrawdownPct.toFixed(1)}%`} />
+                  <StatTile label="DSR (pool acumulado)" value={c.dsrCumulativePool?.toFixed(3) ?? "—"} />
+                  <StatTile label="Corr. vs RS3M" value={c.correlationVsRs3m?.toFixed(3) ?? "—"} />
+                  <StatTile label="Verificación" value={c.independentVerificationStatus} valueClassName="text-wait" />
+                </div>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  <strong>Portfolio 50/50 con RS3M:</strong> Sharpe {c.portfolioBlendSharpe?.toFixed(3) ?? "—"}, MaxDD {c.portfolioBlendMaxDrawdownPct?.toFixed(1) ?? "—"}%.
+                </p>
+                <p className="mt-3 text-[11px] text-muted-foreground">Fuente: {c.sourceDoc}</p>
               </CardBody>
             </Card>
           ))}
