@@ -18,6 +18,7 @@ const CATEGORY_LABEL: Record<NovaCoreNotification["category"], string> = {
   SYSTEM: "Sistema",
   RISK: "Riesgo",
   RESEARCH: "Investigación",
+  REPORT: "Reporte diario",
 };
 
 /**

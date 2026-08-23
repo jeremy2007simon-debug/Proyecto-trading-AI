@@ -3,6 +3,7 @@ import "server-only";
 import { getResearchEvents } from "@/novacore/events/adapters/research-event-adapter";
 import { getRs3mEvents } from "@/novacore/events/adapters/rs3m-event-adapter";
 import { getCaShadowEvents } from "@/novacore/events/adapters/ca-shadow-event-adapter";
+import { getDailyReportEvents } from "@/novacore/reports/daily-close/daily-report-event-adapter";
 import type { NovaCoreEvent, NovaCoreEventDomain } from "@/novacore/events/types";
 
 /**
@@ -18,7 +19,7 @@ export interface ActivityFeedOptions {
 }
 
 export function buildActivityFeed(options: ActivityFeedOptions = {}): NovaCoreEvent[] {
-  const all: NovaCoreEvent[] = [...getRs3mEvents(), ...getResearchEvents(), ...getCaShadowEvents()];
+  const all: NovaCoreEvent[] = [...getRs3mEvents(), ...getResearchEvents(), ...getCaShadowEvents(), ...getDailyReportEvents()];
 
   const filtered = options.domain ? all.filter((e) => e.domain === options.domain) : all;
   const sorted = [...filtered].sort((a, b) => b.timestamp.localeCompare(a.timestamp));

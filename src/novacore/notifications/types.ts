@@ -7,7 +7,7 @@ import type { ISOTimestamp } from "@/novacore/shared/types";
  * invents an event. No execution controls are exposed from a
  * notification; `href` only ever points at a read-only NovaCore page.
  */
-export type NotificationCategory = "SIGNAL" | "APPROVAL" | "ORDER" | "SYSTEM" | "RISK" | "RESEARCH";
+export type NotificationCategory = "SIGNAL" | "APPROVAL" | "ORDER" | "SYSTEM" | "RISK" | "RESEARCH" | "REPORT";
 export type NotificationPriority = "INFO" | "IMPORTANT" | "CRITICAL";
 
 export interface NovaCoreNotification {

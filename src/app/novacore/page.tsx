@@ -15,6 +15,8 @@ import { getRs3mRiskSnapshot } from "@/novacore/risk-analytics/adapters/rs3m-ris
 import { getRs3mCurrentSignal } from "@/novacore/strategy-hub/adapters/rs3m-signal-adapter";
 import { getCaShadowSnapshot } from "@/novacore/strategy-hub/adapters/ca-shadow-snapshot-adapter";
 import { listNovaCoreStrategies } from "@/novacore/strategy-hub/registry";
+import { getLatestDailyCloseReport } from "@/novacore/reports/daily-close/list-reports";
+import { formatPct, formatReportValue, formatUsd } from "@/novacore/reports/daily-close/format";
 
 const ACTIVE_STATUSES = new Set(["PAPER_READY", "PAPER_RUNNING", "SHADOW_READY", "SHADOW_RUNNING", "FORWARD_VERIFIED", "LIVE_ELIGIBLE", "LIVE"]);
 
@@ -38,6 +40,7 @@ export default async function NovaCoreHomePage() {
     Promise.resolve(getCaShadowSnapshot()),
   ]);
   const caStrategy = strategies.find((s) => s.id === "CA_CANDIDATE_V1");
+  const latestReport = getLatestDailyCloseReport();
 
   const activeCount = strategies.filter((s) => ACTIVE_STATUSES.has(s.status)).length;
   const researchCount = strategies.length - activeCount;
@@ -167,6 +170,28 @@ export default async function NovaCoreHomePage() {
                 </div>
               ) : (
                 <p className="mt-1.5 text-sm text-muted">No disponible — {spy.unavailableReason}</p>
+              )}
+            </CardBody>
+          </Card>
+        </Link>
+
+        {/* Latest Daily Report */}
+        <Link href={latestReport ? `/novacore/reports/daily/${latestReport.date}` : "/novacore/reports"}>
+          <Card className="transition-colors hover:border-accent/40">
+            <CardBody className="p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted">Último reporte diario</p>
+                <span className="text-xs text-accent">Ver todos →</span>
+              </div>
+              {latestReport ? (
+                <>
+                  <p className="mt-1.5 text-sm text-foreground">
+                    {latestReport.date} — RS3M {formatReportValue(latestReport.rs3m.dailyPnlPct, formatPct)} · C-A {formatReportValue(latestReport.ca.dailyShadowPnlPct, formatPct)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Portfolio: {formatReportValue(latestReport.portfolio.dailyPnlUsd, formatUsd)} · {latestReport.attention.length > 0 ? `${latestReport.attention.length} punto(s) de atención` : "Sin incidencias"}</p>
+                </>
+              ) : (
+                <p className="mt-1.5 text-sm text-muted">Todavía no se ha generado ningún reporte diario.</p>
               )}
             </CardBody>
           </Card>

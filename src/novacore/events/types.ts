@@ -38,7 +38,9 @@ export type NovaCoreEventType =
   | "SHADOW_INITIALIZED"
   | "SHADOW_POSITION_OPENED"
   | "SHADOW_POSITION_CLOSED"
-  | "SHADOW_BLOCKED";
+  | "SHADOW_BLOCKED"
+  /** Block 10.1 §15/§17 — one consolidated Daily Close Report is ready. `detail.priority` carries the report-specific INFO/IMPORTANT/CRITICAL severity (see `daily-report-event-adapter.ts`) — `build-notifications.ts` reads it instead of using one fixed priority for every report. */
+  | "DAILY_CLOSE_REPORT_READY";
 
 /**
  * Observability Upgrade §10's requested taxonomy (RESEARCH, STRATEGY,

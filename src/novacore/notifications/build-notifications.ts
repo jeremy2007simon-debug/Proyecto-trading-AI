@@ -31,6 +31,7 @@ const EVENT_NOTIFICATION_MAP: Partial<Record<NovaCoreEventType, { category: Noti
   CANDIDATE_CREATED: { category: "RESEARCH", priority: "INFO" },
   SYSTEM_WARNING: { category: "SYSTEM", priority: "IMPORTANT" },
   SYSTEM_ERROR: { category: "SYSTEM", priority: "CRITICAL" },
+  DAILY_CLOSE_REPORT_READY: { category: "REPORT", priority: "INFO" },
 };
 
 const PRIORITY_RANK: Record<NotificationPriority, number> = { CRITICAL: 3, IMPORTANT: 2, INFO: 1 };
@@ -57,13 +58,19 @@ export async function buildNovaCoreNotifications(options: BuildNotificationsOpti
   for (const event of buildActivityFeed({ limit: 50 })) {
     const mapping = EVENT_NOTIFICATION_MAP[event.type];
     if (!mapping) continue;
+    // Daily reports carry their own per-report severity (§15/§36: a normal day is INFO, an
+    // approval/blocked/degraded day is IMPORTANT, a broker/hash issue is CRITICAL) — computed
+    // once in `daily-report-event-adapter.ts` from that report's own `attention` list, not a
+    // single fixed priority for every report the way every other event type uses.
+    const priority = event.type === "DAILY_CLOSE_REPORT_READY" && (event.detail?.priority === "INFO" || event.detail?.priority === "IMPORTANT" || event.detail?.priority === "CRITICAL") ? event.detail.priority : mapping.priority;
+    const href = event.type === "DAILY_CLOSE_REPORT_READY" && typeof event.detail?.date === "string" ? `/novacore/reports/daily/${event.detail.date}` : event.domain === "research" ? "/novacore/research" : `/novacore/bots/${event.strategyId ?? ""}`;
     notifications.push({
       id: `event:${event.id}`,
       category: mapping.category,
-      priority: mapping.priority,
+      priority,
       message: event.summary,
       timestamp: event.timestamp,
-      href: event.domain === "research" ? "/novacore/research" : `/novacore/bots/${event.strategyId ?? ""}`,
+      href,
       sourceDoc: event.sourceDoc,
     });
   }
