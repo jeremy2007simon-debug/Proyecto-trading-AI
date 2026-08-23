@@ -17,7 +17,9 @@ import { getRs3mHealth } from "@/novacore/health/rs3m-health";
 import { getNovaCorePortfolioSnapshot } from "@/novacore/portfolio/adapters/rs3m-portfolio-adapter";
 import { getRs3mRiskSnapshot } from "@/novacore/risk-analytics/adapters/rs3m-risk-adapter";
 import { getRs3mCurrentSignal } from "@/novacore/strategy-hub/adapters/rs3m-signal-adapter";
+import { getCaShadowSnapshot, CA_OOS_METRICS, CA_COST_ROBUSTNESS, CA_RS3M_CORRELATION } from "@/novacore/strategy-hub/adapters/ca-shadow-snapshot-adapter";
 import { getNovaCoreStrategyById } from "@/novacore/strategy-hub/registry";
+import { CaDetailPanels } from "@/components/novacore/CaDetailPanels";
 
 export default async function NovaCoreBotDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,11 +27,13 @@ export default async function NovaCoreBotDetailPage({ params }: { params: Promis
   if (!strategy) notFound();
 
   const isRs3m = id === RS3M_CANDIDATE_V1.candidateId;
+  const isCa = id === "CA_CANDIDATE_V1";
+
   const [execution, risk, health, safety, signal, portfolio] = isRs3m
     ? await Promise.all([getRs3mExecutionSnapshot(), getRs3mRiskSnapshot(), getRs3mHealth(), getRs3mExecutionSafety(), Promise.resolve(getRs3mCurrentSignal()), getNovaCorePortfolioSnapshot()])
     : [undefined, undefined, undefined, undefined, undefined, undefined];
 
-  const activity = isRs3m ? buildActivityFeed({ limit: 100 }).filter((e) => e.strategyId === id) : [];
+  const activity = isRs3m || isCa ? buildActivityFeed({ limit: 100 }).filter((e) => e.strategyId === id) : [];
   const positions = portfolio?.available ? portfolio.positions.filter((p) => p.strategyId === id) : [];
   const orders = portfolio?.available ? portfolio.recentOrders : [];
 
@@ -38,6 +42,36 @@ export default async function NovaCoreBotDetailPage({ params }: { params: Promis
       <strong>HISTORICAL BACKTEST ≠ FORWARD PAPER RESULTS.</strong> PAPER_READY no significa PAPER_RUNNING. AUDIT_PASSED no significa VALIDATED. No existe el estado VALIDATED para RS3M.
     </div>
   );
+
+  if (isCa) {
+    const shadow = getCaShadowSnapshot();
+    return (
+      <div>
+        <PageHeader
+          title={strategy.name}
+          description={`${strategy.family.replace(/_/g, " ")} · v${strategy.version} · hash ${strategy.candidateHash ?? "n/d"}`}
+          action={<StrategyStatusBadge status={strategy.status} />}
+        />
+        <div className="mb-6 rounded-xl border border-purple-400/30 bg-purple-400/5 px-4 py-3 text-xs text-purple-400">
+          <strong>SHADOW ≠ PAPER.</strong> Ninguna orden real fue ni será enviada. Toda posición, fill y P&amp;L de esta página son hipotéticos, calculados por NovaCore — nunca una cuenta de broker.
+        </div>
+        <CaDetailPanels strategy={strategy} shadow={shadow} activity={activity} oos={CA_OOS_METRICS} cost={CA_COST_ROBUSTNESS} correlation={CA_RS3M_CORRELATION} />
+        <div className="mt-6">
+          <Card>
+            <CardHeader title="Fuente de la verdad" description="De dónde viene cada dato de esta página." />
+            <CardBody className="space-y-1 p-4 text-xs">
+              {Object.entries(strategy.sourceOfTruth).map(([field, source]) => (
+                <div key={field} className="flex flex-col gap-0.5 border-b border-border-subtle py-1.5 last:border-0 sm:flex-row sm:justify-between">
+                  <span className="text-muted">{field}</span>
+                  <span className="text-muted-foreground">{source}</span>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

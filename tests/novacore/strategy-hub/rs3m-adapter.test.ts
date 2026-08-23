@@ -10,9 +10,8 @@ describe("NovaCore Strategy Hub — RS3M read-only adapter", () => {
     expect(candidateHashVerified).toBe(true);
   });
 
-  it("registers RS3M_CANDIDATE_V1 as the Strategy Hub's first (and, in this block, only) entry", () => {
+  it("registers RS3M_CANDIDATE_V1 as the Strategy Hub's first entry (Block 10 adds C-A as the second — see ca-adapter.test.ts)", () => {
     const strategies = listNovaCoreStrategies();
-    expect(strategies).toHaveLength(1);
     expect(strategies[0].id).toBe("RS3M_CANDIDATE_V1");
   });
 

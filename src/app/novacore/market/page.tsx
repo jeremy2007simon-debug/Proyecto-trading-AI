@@ -7,9 +7,10 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { formatFreshness } from "@/lib/format-freshness";
 import { getMarketNews } from "@/novacore/market-news/adapters/get-market-news";
 import { getMarketMovers } from "@/novacore/market-context/adapters/market-movers-adapter";
+import { getCaShadowSnapshot } from "@/novacore/strategy-hub/adapters/ca-shadow-snapshot-adapter";
 
 export default async function NovaCoreMarketPage() {
-  const [movers, news] = await Promise.all([getMarketMovers(), getMarketNews({ limit: 3 })]);
+  const [movers, news, caShadow] = await Promise.all([getMarketMovers(), getMarketNews({ limit: 3 }), Promise.resolve(getCaShadowSnapshot())]);
 
   return (
     <div>
@@ -46,6 +47,39 @@ export default async function NovaCoreMarketPage() {
             ))}
           </CardBody>
         </Card>
+      </div>
+
+      {/* §19 — optional C-A signal context on SPY, since C-A's market is SPY. Never presented as financial advice. */}
+      <div className="mt-6">
+        <Link href="/novacore/bots/CA_CANDIDATE_V1">
+          <Card className="border-purple-400/20 transition-colors hover:border-purple-400/40">
+            <CardHeader
+              title="C-A signal context (SPY)"
+              description="Contexto informativo del candidato C-A sobre SPY — no es una recomendación de inversión."
+              action={<span className="rounded-full border border-purple-400/30 bg-purple-400/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-purple-400">SHADOW</span>}
+            />
+            <CardBody className="p-4">
+              {caShadow.latestSignal ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div>
+                    <p className="text-[11px] text-muted">Percentile rank</p>
+                    <p className="font-mono text-sm text-foreground">{caShadow.latestSignal.percentileRank.toFixed(3)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted">Estado de señal</p>
+                    <p className={`font-mono text-sm ${caShadow.latestSignal.triggered ? "text-buy" : "text-foreground"}`}>{caShadow.latestSignal.triggered ? "TRIGGERED" : "SIN DISPARO"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted">Posición hipotética</p>
+                    <p className="font-mono text-sm text-foreground">{caShadow.shadow.currentPosition}</p>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState variant="noData" message="Sin señal SHADOW todavía." detail="C-A es un candidato SHADOW — sin órdenes reales, sin recomendación de inversión." />
+              )}
+            </CardBody>
+          </Card>
+        </Link>
       </div>
 
       <div className="mt-6">

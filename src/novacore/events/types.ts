@@ -27,7 +27,18 @@ export type NovaCoreEventType =
   | "RESEARCH_EXPERIMENT_COMPLETED"
   | "CANDIDATE_CREATED"
   | "SYSTEM_WARNING"
-  | "SYSTEM_ERROR";
+  | "SYSTEM_ERROR"
+  /**
+   * Block 10 §20 — C-A shadow-only additions. Deliberately NOT
+   * `ORDER_SUBMITTED`/`ORDER_FILLED`: those types mean a real broker
+   * order exists, which a SHADOW strategy's evidence never does — reusing
+   * them here would blur exactly the SHADOW-vs-PAPER distinction §4/§18
+   * require staying visually and semantically unambiguous.
+   */
+  | "SHADOW_INITIALIZED"
+  | "SHADOW_POSITION_OPENED"
+  | "SHADOW_POSITION_CLOSED"
+  | "SHADOW_BLOCKED";
 
 /**
  * Observability Upgrade §10's requested taxonomy (RESEARCH, STRATEGY,

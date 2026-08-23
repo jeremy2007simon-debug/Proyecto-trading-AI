@@ -6,6 +6,8 @@ const STRATEGY_STATUS_STYLE: Record<NovaCoreStrategyStatus, string> = {
   CANDIDATE: "border-accent/30 bg-accent/10 text-accent",
   PAPER_READY: "border-wait/30 bg-wait/10 text-wait",
   PAPER_RUNNING: "border-accent/30 bg-accent/10 text-accent",
+  SHADOW_READY: "border-purple-400/30 bg-purple-400/10 text-purple-400",
+  SHADOW_RUNNING: "border-purple-400/30 bg-purple-400/10 text-purple-400",
   FORWARD_VERIFIED: "border-buy/30 bg-buy/10 text-buy",
   LIVE_ELIGIBLE: "border-buy/30 bg-buy/10 text-buy",
   LIVE: "border-buy/30 bg-buy/10 text-buy",

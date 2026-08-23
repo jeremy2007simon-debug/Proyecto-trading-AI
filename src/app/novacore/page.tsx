@@ -13,9 +13,10 @@ import { getMarketNews } from "@/novacore/market-news/adapters/get-market-news";
 import { getNovaCorePortfolioSnapshot } from "@/novacore/portfolio/adapters/rs3m-portfolio-adapter";
 import { getRs3mRiskSnapshot } from "@/novacore/risk-analytics/adapters/rs3m-risk-adapter";
 import { getRs3mCurrentSignal } from "@/novacore/strategy-hub/adapters/rs3m-signal-adapter";
+import { getCaShadowSnapshot } from "@/novacore/strategy-hub/adapters/ca-shadow-snapshot-adapter";
 import { listNovaCoreStrategies } from "@/novacore/strategy-hub/registry";
 
-const ACTIVE_STATUSES = new Set(["PAPER_READY", "PAPER_RUNNING", "FORWARD_VERIFIED", "LIVE_ELIGIBLE", "LIVE"]);
+const ACTIVE_STATUSES = new Set(["PAPER_READY", "PAPER_RUNNING", "SHADOW_READY", "SHADOW_RUNNING", "FORWARD_VERIFIED", "LIVE_ELIGIBLE", "LIVE"]);
 
 /**
  * §2, §24 — NovaCore home, rebuilt around a small executive summary
@@ -25,7 +26,7 @@ const ACTIVE_STATUSES = new Set(["PAPER_READY", "PAPER_RUNNING", "FORWARD_VERIFI
  * matters". Everything else lives one tap away (Market/Bots/More).
  */
 export default async function NovaCoreHomePage() {
-  const [strategies, portfolio, health, risk, signal, safety, spy, news] = await Promise.all([
+  const [strategies, portfolio, health, risk, signal, safety, spy, news, caShadow] = await Promise.all([
     Promise.resolve(listNovaCoreStrategies()),
     getNovaCorePortfolioSnapshot(),
     getRs3mHealth(),
@@ -34,7 +35,9 @@ export default async function NovaCoreHomePage() {
     getRs3mExecutionSafety(),
     getMarketBenchmarkSeries("SP500", "1D"),
     getMarketNews({ limit: 2 }),
+    Promise.resolve(getCaShadowSnapshot()),
   ]);
+  const caStrategy = strategies.find((s) => s.id === "CA_CANDIDATE_V1");
 
   const activeCount = strategies.filter((s) => ACTIVE_STATUSES.has(s.status)).length;
   const researchCount = strategies.length - activeCount;
@@ -127,6 +130,24 @@ export default async function NovaCoreHomePage() {
             </CardBody>
           </Card>
         </Link>
+
+        {/* C-A mini card — SHADOW, deliberately visually distinct from RS3M's PAPER card above */}
+        {caStrategy ? (
+          <Link href="/novacore/bots/CA_CANDIDATE_V1">
+            <Card className="border-purple-400/20 transition-colors hover:border-purple-400/40">
+              <CardBody className="flex items-center justify-between p-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">C-A — Short-Term Reversal</p>
+                  <p className="mt-0.5 text-xs text-purple-400">
+                    SHADOW FORWARD · {caShadow.shadow.currentPosition}
+                    {caShadow.hasForwardEvidence ? ` · ${caShadow.shadow.realizedShadowPnlPct >= 0 ? "+" : ""}${caShadow.shadow.realizedShadowPnlPct.toFixed(2)}%` : " · sin evidencia forward todavía"}
+                  </p>
+                </div>
+                <StrategyStatusBadge status={caStrategy.status} />
+              </CardBody>
+            </Card>
+          </Link>
+        ) : null}
 
         {/* Market mini card */}
         <Link href="/novacore/market">

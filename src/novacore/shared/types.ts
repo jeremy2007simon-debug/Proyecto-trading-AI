@@ -23,6 +23,16 @@ export type { ISOTimestamp, Result };
  * strategy; nothing in this codebase can currently produce them (LIVE
  * trading has no implementation anywhere — see `src/core/execution/types.ts`
  * and `alpaca-paper-client.ts`'s structural paper-only guarantee).
+ *
+ * `SHADOW_READY`/`SHADOW_RUNNING` (Block 10) are C-A's own two-phase
+ * distinction, deliberately parallel to RS3M's `PAPER_READY`/
+ * `PAPER_RUNNING` precedent: infrastructure BUILT-AND-TESTED vs.
+ * ACTUALLY, ACTIVELY evaluating real signals on a schedule. A SHADOW
+ * strategy never submits an order — see `NovaCoreEnvironment`'s
+ * `"SHADOW"` value and `src/core/ca-shadow/shadow-engine.ts`. It is
+ * deliberately NOT `PAPER_READY`/`PAPER`: shadow evidence is
+ * hypothetical, computed by NovaCore's own read-only engine, never a
+ * broker's actual paper account.
  */
 export type NovaCoreStrategyStatus =
   | "RESEARCH"
@@ -30,11 +40,21 @@ export type NovaCoreStrategyStatus =
   | "CANDIDATE"
   | "PAPER_READY"
   | "PAPER_RUNNING"
+  | "SHADOW_READY"
+  | "SHADOW_RUNNING"
   | "FORWARD_VERIFIED"
   | "LIVE_ELIGIBLE"
   | "LIVE";
 
-export type NovaCoreEnvironment = "RESEARCH" | "PAPER" | "LIVE";
+/**
+ * `"SHADOW"` (Block 10): the strategy's signal is evaluated for real and
+ * a hypothetical position/P&L is tracked, but NO order of any kind is
+ * ever submitted to a broker — structurally distinct from `"PAPER"`
+ * (a real broker paper account holds a real, broker-tracked position).
+ * Never conflate the two in UI copy — see §4/§18 of
+ * `docs/BLOCK10_CA_SHADOW_FORWARD_VALIDATION.md`.
+ */
+export type NovaCoreEnvironment = "RESEARCH" | "PAPER" | "SHADOW" | "LIVE";
 
 /**
  * Observability Upgrade — where a piece of data actually came from, so a

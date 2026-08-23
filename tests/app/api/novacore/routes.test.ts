@@ -46,8 +46,10 @@ describe("/api/novacore/* — read-only API layer", () => {
     const res = await getStrategies(req("http://localhost/api/novacore/strategies"));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.strategies).toHaveLength(1);
+    // Block 10 adds CA_CANDIDATE_V1 as the second registered strategy — RS3M stays first.
+    expect(body.strategies.length).toBeGreaterThanOrEqual(2);
     expect(body.strategies[0].id).toBe("RS3M_CANDIDATE_V1");
+    expect(body.strategies.map((s: { id: string }) => s.id)).toContain("CA_CANDIDATE_V1");
   });
 
   it("GET /api/novacore/strategies/RS3M_CANDIDATE_V1", async () => {

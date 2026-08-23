@@ -8,6 +8,7 @@ import { getRs3mExecutionSnapshot } from "@/novacore/execution-center/adapters/r
 import { getRs3mHealth } from "@/novacore/health/rs3m-health";
 import { getRs3mRiskSnapshot } from "@/novacore/risk-analytics/adapters/rs3m-risk-adapter";
 import { getRs3mCurrentSignal } from "@/novacore/strategy-hub/adapters/rs3m-signal-adapter";
+import { getCaShadowSnapshot } from "@/novacore/strategy-hub/adapters/ca-shadow-snapshot-adapter";
 import { listNovaCoreStrategies } from "@/novacore/strategy-hub/registry";
 
 export default async function NovaCoreBotsPage() {
@@ -21,6 +22,48 @@ export default async function NovaCoreBotsPage() {
         {await Promise.all(
           strategies.map(async (strategy) => {
             const isRs3m = strategy.id === RS3M_CANDIDATE_V1.candidateId;
+            const isCa = strategy.id === "CA_CANDIDATE_V1";
+
+            if (isCa) {
+              const shadow = getCaShadowSnapshot();
+              return (
+                <Link key={strategy.id} href={`/novacore/bots/${strategy.id}`}>
+                  <Card className="border-purple-400/20 transition-colors hover:border-purple-400/40">
+                    <CardBody className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{strategy.name}</p>
+                          <p className="mt-0.5 text-xs text-purple-400">Environment: SHADOW (no broker, no órdenes reales)</p>
+                        </div>
+                        <StrategyStatusBadge status={strategy.status} />
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div>
+                          <p className="text-[11px] text-muted">P&amp;L shadow</p>
+                          <p className={`font-mono text-sm ${shadow.hasForwardEvidence ? (shadow.shadow.realizedShadowPnlPct >= 0 ? "text-buy" : "text-sell") : "text-muted"}`}>
+                            {shadow.hasForwardEvidence ? `${shadow.shadow.realizedShadowPnlPct >= 0 ? "+" : ""}${shadow.shadow.realizedShadowPnlPct.toFixed(2)}%` : "Sin datos"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-muted">Estado</p>
+                          <p className="font-mono text-sm text-foreground">FORWARD VALIDATION</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-muted">Posición hipotética</p>
+                          <p className="font-mono text-sm text-foreground">{shadow.shadow.currentPosition}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-muted">Órdenes</p>
+                          <p className="font-mono text-sm text-foreground">0</p>
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                </Link>
+              );
+            }
+
             const [execution, risk, health, safety, signal] = isRs3m
               ? await Promise.all([getRs3mExecutionSnapshot(), getRs3mRiskSnapshot(), getRs3mHealth(), getRs3mExecutionSafety(), Promise.resolve(getRs3mCurrentSignal())])
               : [undefined, undefined, undefined, undefined, undefined];

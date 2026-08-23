@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowRightLeft, Database, FlaskConical, History, Home, Info, LineChart, MoreHorizontal, PieChart, Radar, Settings, ShieldCheck } from "lucide-react";
+import { ArrowRightLeft, Database, FlaskConical, GitCompareArrows, History, Home, Info, LineChart, MoreHorizontal, PieChart, Radar, Settings, ShieldCheck } from "lucide-react";
 
 /**
  * Observability Upgrade — NovaCore's own bottom-tab-bar navigation.
@@ -26,7 +26,7 @@ export const NOVACORE_TABS: NovaCoreTab[] = [
     label: "Más",
     href: "/novacore/more",
     icon: MoreHorizontal,
-    matchPrefixes: ["/novacore/more", "/novacore/activity", "/novacore/execution", "/novacore/risk", "/novacore/system", "/novacore/data-sources", "/novacore/settings", "/novacore/about"],
+    matchPrefixes: ["/novacore/more", "/novacore/activity", "/novacore/execution", "/novacore/risk", "/novacore/system", "/novacore/data-sources", "/novacore/settings", "/novacore/about", "/novacore/portfolio-lab"],
   },
 ];
 
@@ -45,6 +45,7 @@ export interface MoreMenuLink {
 /** §13 — secondary pages, reachable from the "More" tab instead of crowding the main bottom nav. */
 export const MORE_MENU_LINKS: MoreMenuLink[] = [
   { label: "Actividad", description: "Línea de tiempo unificada de todos los eventos.", href: "/novacore/activity", icon: History },
+  { label: "Portfolio Lab", description: "RS3M (Paper) vs. C-A (Shadow) — comparación, nunca capital combinado.", href: "/novacore/portfolio-lab", icon: GitCompareArrows },
   { label: "Ejecución", description: "Broker, cuenta, órdenes, aprobaciones, guards.", href: "/novacore/execution", icon: ArrowRightLeft },
   { label: "Riesgo y Analítica", href: "/novacore/risk", description: "Métricas de riesgo histórico, OOS y forward.", icon: PieChart },
   { label: "Salud del sistema", description: "Cada check, con su propia explicación.", href: "/novacore/system", icon: ShieldCheck },
