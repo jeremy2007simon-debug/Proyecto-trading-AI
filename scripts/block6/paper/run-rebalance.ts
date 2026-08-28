@@ -41,6 +41,13 @@
  *      through the notification dispatcher
  *      (`notifications/dispatcher.ts`) per `notification-policy.ts`
  *      (routine STALE_SIGNAL blocks do NOT notify daily).
+ *   9. The same attempt is ALSO persisted to Supabase
+ *      (`rs3m_forward_executions`, see `0005_rs3m_forward_executions.sql`)
+ *      as a best-effort, non-blocking side effect
+ *      (`persistForwardExecution` below) — the local JSONL ledger from
+ *      step 8 is written first and unconditionally, so a Supabase outage
+ *      never loses evidence, it only means that one row has to be
+ *      recovered from the container's local ledger instead.
  *
  * Run with:
  *   NODE_OPTIONS="--conditions=react-server" npx tsx scripts/block6/paper/run-rebalance.ts
@@ -51,6 +58,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 
 import { setupSandboxIO } from "../../lib/sandbox-io";
 setupSandboxIO();
@@ -61,16 +69,18 @@ import { hasAwaitingApprovalMarker, hasValidApproval, writeAwaitingApprovalMarke
 import { determineRebalanceTarget } from "./scheduling";
 import { resolveAlpacaPaperCredentials } from "./credentials";
 import { appendForwardEvidence } from "./forward-evidence-store";
+import { deriveApprovalStatus, deriveSignalFreshness } from "./forward-execution-observability";
 import { createDefaultNotificationDispatcher } from "./notifications/dispatcher";
 import { fetchRs3mUniverse } from "../lib/fetch-candidate-assets";
 import { createAlpacaPaperTradingClient } from "@/core/execution/alpaca-paper-client";
 import { getEasternWallClockParts, isCalendarDateTradingDay, type CalendarDateOnly } from "@/core/market-hours/nyse-calendar";
 import { createRs3mEngine, type Rs3mExecuteResult, type Rs3mPlanResult } from "@/core/paper-trading/rs3m/rs3m-engine";
 import { computeCandidateHash, RS3M_CANDIDATE_V1 } from "@/core/paper-trading/rs3m/candidate";
-import { buildForwardEvidenceRecord } from "@/core/paper-trading/rs3m/forward-evidence";
+import { buildForwardEvidenceRecord, type ForwardEvidenceRecord } from "@/core/paper-trading/rs3m/forward-evidence";
 import { classifyBlockedPlanNotification } from "@/core/paper-trading/rs3m/notification-policy";
 import type { Rs3mNotificationEvent } from "@/core/paper-trading/rs3m/notification-events";
 import type { RelativeStrengthAssetInput } from "@/core/backtesting/research/relative-strength";
+import { logRs3mForwardExecution } from "@/lib/data/rs3m-forward-executions.repository";
 
 const DRY_RUN_OUTPUT_DIR = join(process.cwd(), "results", "block6", "paper", "dry-run");
 const ORDERS_OUTPUT_DIR = join(process.cwd(), "results", "block6", "paper", "orders");
@@ -79,6 +89,34 @@ const notifications = createDefaultNotificationDispatcher();
 
 function notify(type: Rs3mNotificationEvent["type"], summary: string, detail: Record<string, unknown> = {}): Promise<void> {
   return notifications.notify({ type, timestamp: new Date().toISOString(), summary, detail });
+}
+
+/**
+ * Best-effort, non-blocking durable copy of the same evidence already
+ * appended (unconditionally, first) to the local JSONL ledger — persists
+ * to Supabase's `rs3m_forward_executions` table (see
+ * `0005_rs3m_forward_executions.sql`) so a read-only audit from a
+ * DIFFERENT session/container (which cannot see this container's local
+ * filesystem) has a durable place to read forward evidence from. A
+ * Supabase outage/misconfiguration here is only ever logged via
+ * `appendEvent("ERROR", ...)` — it can NEVER throw back into `main()`,
+ * retry a guard, or change any trading decision that has already been
+ * made by the time this is called.
+ */
+async function persistForwardExecution(evidence: ForwardEvidenceRecord, brokerResponse?: Record<string, unknown>): Promise<void> {
+  try {
+    await logRs3mForwardExecution({
+      executionId: randomUUID(),
+      occurredAt: evidence.timestamp,
+      evidence,
+      signalFreshness: deriveSignalFreshness(evidence),
+      approvalStatus: deriveApprovalStatus(evidence),
+      brokerResponse,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    appendEvent("ERROR", { message: `Failed to persist forward execution evidence to Supabase (local JSONL ledger already has it): ${message}` });
+  }
 }
 
 /** Builds the full, human-readable snapshot for the ONE notification that matters: the first fresh signal ready for manual approval. Every field the spec asked for. */
@@ -181,7 +219,9 @@ async function main() {
       await notify(notificationDecision.type, `Dry-run blocked for ${decisionMonthKey}: ${planResult.blockedReason}.`, { decisionMonthKey, violations: planResult.guardResult.violations });
     }
 
-    appendForwardEvidence(buildForwardEvidenceRecord({ nowIso: now.toISOString(), planResult }));
+    const dryRunEvidence = buildForwardEvidenceRecord({ nowIso: now.toISOString(), planResult });
+    appendForwardEvidence(dryRunEvidence);
+    await persistForwardExecution(dryRunEvidence);
 
     mkdirSync(DRY_RUN_OUTPUT_DIR, { recursive: true });
     const outputPath = join(DRY_RUN_OUTPUT_DIR, `${decisionMonthKey}-${now.toISOString().replace(/[:.]/g, "-")}.json`);
@@ -210,7 +250,9 @@ async function main() {
     const isBrokerFailure = /broker|order submission|fail-closed/i.test(executeResult.skipReason ?? "");
     const notificationType: Rs3mNotificationEvent["type"] = isBrokerFailure ? "BROKER_ERROR" : "GUARD_BLOCKED";
     await notify(notificationType, `Execution skipped for ${decisionMonthKey}: ${executeResult.skipReason}.`, { decisionMonthKey, skipReason: executeResult.skipReason });
-    appendForwardEvidence(buildForwardEvidenceRecord({ nowIso: now.toISOString(), planResult: executeResult.planResult, executeResult }));
+    const skippedEvidence = buildForwardEvidenceRecord({ nowIso: now.toISOString(), planResult: executeResult.planResult, executeResult });
+    appendForwardEvidence(skippedEvidence);
+    await persistForwardExecution(skippedEvidence, { skipReason: executeResult.skipReason });
     console.log(`\n=== Execution skipped: ${executeResult.skipReason} ===`);
     return;
   }
@@ -229,15 +271,20 @@ async function main() {
   appendEvent("ORDERS_SUBMITTED", { decisionMonthKey, orders: executeResult.ordersSubmitted });
 
   const [positionsAfterResult, accountAfterResult] = await Promise.all([tradingClient.getPositions(), tradingClient.getAccount()]);
-  appendForwardEvidence(
-    buildForwardEvidenceRecord({
-      nowIso: now.toISOString(),
-      planResult: executeResult.planResult,
-      executeResult,
-      positionsAfter: positionsAfterResult.ok ? positionsAfterResult.value.map((p) => ({ symbol: p.symbol, marketValue: p.marketValue })) : undefined,
-      accountEquityAfterUsd: accountAfterResult.ok ? accountAfterResult.value.equity : undefined,
-    }),
-  );
+  const executedEvidence = buildForwardEvidenceRecord({
+    nowIso: now.toISOString(),
+    planResult: executeResult.planResult,
+    executeResult,
+    positionsAfter: positionsAfterResult.ok ? positionsAfterResult.value.map((p) => ({ symbol: p.symbol, marketValue: p.marketValue })) : undefined,
+    accountEquityAfterUsd: accountAfterResult.ok ? accountAfterResult.value.equity : undefined,
+  });
+  appendForwardEvidence(executedEvidence);
+  await persistForwardExecution(executedEvidence, {
+    positionsAfterReadOk: positionsAfterResult.ok,
+    positionsAfterReadError: positionsAfterResult.ok ? undefined : positionsAfterResult.error.message,
+    accountAfterReadOk: accountAfterResult.ok,
+    accountAfterReadError: accountAfterResult.ok ? undefined : accountAfterResult.error.message,
+  });
 
   await notify("REBALANCE_COMPLETED", `Rebalance executed for ${decisionMonthKey}: ${executeResult.ordersSubmitted.length} order(s).`, { decisionMonthKey, anyOrderStillInFlight: executeResult.anyOrderStillInFlight });
   console.log(`\n=== Rebalance executed for ${decisionMonthKey}: ${executeResult.ordersSubmitted.length} order(s) submitted. ===`);
